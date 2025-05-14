@@ -1,0 +1,35 @@
+modules:
+  jira:projectSettingsPage:
+    - key: project-setting
+      resource: main
+      resolver:
+        function: resolver
+      title: GYDN PS
+  jira:issuePanel:
+    - key: issue-view
+      resource: main
+      resolver:
+        function: resolver
+      title: GYDN IP
+      icon: https://www.svgrepo.com/show/535115/alien.svg
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/project-setting/build
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/fce6b358-d85a-46da-8ab0-644288460d93
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+  content:
+    styles:
+      - 'unsafe-inline'
+  external:
+    fetch:
+      backend:
+        - https://generativelanguage.googleapis.com

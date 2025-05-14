@@ -1,0 +1,67 @@
+/* Project Settings Component Styles */
+ 
+/* Main layout containers */
+  .project-setting-container {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    padding: 1rem;
+    font-family: 'Segoe UI', sans-serif;
+    max-height: 768px;
+  }
+  
+  /* Common panel styles */
+  .editor-wrapper,
+  .info-panel {
+      /* background: #ffffff; */
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      height: 100%;
+  }
+
+  .editor-wrapper {
+    flex: 1.5;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .info-panel {
+    flex: 1;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    place-items: top;
+    min-width: 25rem;
+    max-width: 28rem;
+  }
+  
+  .editor {
+    min-height: 25rem;
+    min-width: 30rem;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    border-radius: 6px;
+    padding: 1.5rem;
+    overflow: auto;
+    margin-top: 1rem;
+  }
+
+  .file-upload-row {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  input[type='file'] {
+    padding: 5px;
+  }
+
+  .button-row{
+    display: flex;
+    justify-content: space-around;
+  }

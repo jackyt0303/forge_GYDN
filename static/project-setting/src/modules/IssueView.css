@@ -1,0 +1,24 @@
+.issue-view-container{
+    width: 100vw;
+    display: flex;
+    place-items: center;
+}
+
+.issue-view-container td{
+    text-align: center !important;
+}
+
+.verifying-template-container{
+    max-width: 80vw ;
+    padding: 1rem;
+}
+
+.template-preview{
+    max-height: 75vh;
+    overflow: scroll;
+}
+
+.actions-container{
+    display: flex;
+    justify-content: space-around;
+}
