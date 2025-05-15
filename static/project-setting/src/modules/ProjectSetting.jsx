@@ -20,6 +20,7 @@ import Tabs, { Tab, TabList, TabPanel } from '@atlaskit/tabs';
 import Loader from '../components/Loader';
 import { validateTemplate } from '../utils/templateValidation';
 import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
+import ModalDialog, { showModalDialog } from '../components/modalDialog';
 
 function ProjectSetting() {
   const context = useAppContext();
@@ -211,11 +212,8 @@ function ProjectSetting() {
 
       } catch (err) {
         console.error('Error in handleSubmit:', err);
-        setErrorMessage("Failed to save the template. Please ensure your template is valid and your connection is stable, then try again.");
       } finally {
         setIsLoading(false);
-        setTemplateName('');
-
       }
     });
   };
@@ -223,7 +221,6 @@ function ProjectSetting() {
   const handleDelete = async (key) => {
     setButtonAppearance('danger');
     setTitleAppearance('danger');
-    
     showAlert(`Are you sure you want to delete the template with key: ${key}?`, async () => {
       try {
         setIsLoading(true);
@@ -239,8 +236,8 @@ function ProjectSetting() {
   };
 
   const handleEditCode = async (value) => {
+    setButtonAppearance('primary');
     showAlert('Are you sure you want to edit this template?', () => {
-      setButtonAppearance('primary');
       try {
         setCode(value.template);
         setLanguage(value.datatype);
@@ -257,59 +254,28 @@ function ProjectSetting() {
   
   return (
     <div className="project-setting-container">
+      {!!alertMessage && <ModalDialog 
+        message={message}
+        handleCancel={handleCancel}
+        handleConfirm={handleConfirm}
+        titleAppearance={titleAppearance}
+        buttonAppearance={buttonAppearance}
+      />}
       
-      {!!alertMessage && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader hasCloseButton>
-            <ModalTitle appearance={titleAppearance}>Confirm Your Action</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-          {alertMessage}
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="subtle" onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button appearance={buttonAppearance} onClick={handleConfirm}>
-              Confirm
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
+      {!!message && <ModalDialog 
+        message={message}
+        handleCancel={handleCancel}
+        titleAppearance={titleAppearance}
+        buttonAppearance={buttonAppearance}
+      />}
 
-      {!!message && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader>
-            <ModalTitle appearance={titleAppearance} >Message</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-          {message}
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="subtle" onClick={handleCancel}>
-              Close
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
+      {!!errorMessage && <ModalDialog 
+        message={message}
+        handleCancel={handleCancel}
+        titleAppearance={titleAppearance}
+        buttonAppearance={buttonAppearance}
+      />}
       
-      {!!errorMessage && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader hasCloseButton>
-            <ModalTitle appearance='danger'>Unable to Complete Operation</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-            <Text as="p">{errorMessage}</Text>
-            <Text as="p" color="subtle">If this issue persists, please contact your administrator with error code: {Date.now().toString(36)}</Text>
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="primary" onClick={() => setErrorMessage("")}>
-              Dismiss
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
-
       <Inline space='space.200' grow='fill'>
         <div className="editor-wrapper">
           <h2>📝Template Editor</h2>
