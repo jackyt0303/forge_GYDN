@@ -15,6 +15,7 @@ import Loader from '../components/Loader';
 import { validateTemplate } from '../utils/templateValidation';
 import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
 import ModalDialog from '../components/modalDialog';
+import TemplateEditor from '../components/TemplateEditor';
 
 function ProjectSetting() {
   const context = useAppContext();
@@ -70,8 +71,6 @@ function ProjectSetting() {
           "Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
           'Initialization'
         );
-        // console.error('Error initializing data:', error);
-        // setMessage("Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.");
       } finally {
         setIsLoading(false); // End loading
       }
@@ -83,11 +82,6 @@ function ProjectSetting() {
     fetchCustomField();
   }, [code]); 
 
-  useEffect(() => {
-    fetchTemplates();
-    setInfoPanel('templates');
-  }, [message]);
-
   const fetchTemplates = async () => {
     try {
       const allTemplates = await invoke('getAllTemplate');
@@ -98,9 +92,6 @@ function ProjectSetting() {
         "We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.",
         'fetching all template'
       );
-      // console.error('[PS:main]Error fetching templates:', error);
-      // setMessage("We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.");
-      // Return empty array to prevent further errors
       setTemplates([]);
     }
   };
@@ -114,8 +105,6 @@ function ProjectSetting() {
         "Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.",
         'custom field extraction'
       );
-      // console.error('[PS]Error fetching custom fields:', error);
-      // setMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.");
       setCustomFields([]);
     }
   };
@@ -131,8 +120,6 @@ function ProjectSetting() {
         "Could not retrieve project field references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.",
         'fetching field value references'
       );
-      // console.error('Error fetching custom field values:', error);
-      // setMessage("Could not retrieve field value references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.");
       setCustomFieldValuesRef({}); // Fallback to empty object
       return {};
     }
@@ -174,8 +161,6 @@ function ProjectSetting() {
         error,
         "An unexpected error occurred while uploading your file. Please try again or use a different file."
       );
-      // console.error('Error in file upload:', error);
-      // setMessage("An unexpected error occurred while uploading your file. Please try again or use a different file.");
     }
   };
 
@@ -218,13 +203,12 @@ function ProjectSetting() {
             error,
             "Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.",
           );
-          // console.error('Error saving template:', error);
-          // setMessage("Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.");
         });
       } catch (err) {
         console.error('Error in handleSubmit:', err);
       } finally {
         setIsLoading(false);
+        fetchTemplates();
       }
     });
   };
@@ -243,10 +227,9 @@ function ProjectSetting() {
           `Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`,
           "Delete Template"
         );
-        // console.error('[PS] Error deleting template:', error);
-        // setMessage(`Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`);
       } finally {
         setIsLoading(false);
+        fetchTemplates();
       }
     });
   };
@@ -263,8 +246,6 @@ function ProjectSetting() {
           "Failed to load the template for editing. The template might be corrupted. Try selecting a different template.",
           "Edit code"
         );
-        // console.error('[PS] Error editing template code:', error);
-        // setMessage("Failed to load the template for editing. The template might be corrupted. Try selecting a different template.");
       }
     });
   };
@@ -308,7 +289,17 @@ function ProjectSetting() {
       />}
       
       <Inline space='space.200' grow='fill'>
-        <div className="editor-wrapper">
+      <TemplateEditor
+          code={code}
+          setCode={setCode}
+          templateName={templateName}
+          setTemplateName={setTemplateName}
+          language={language}
+          handleSubmit={handleSubmit}
+          handleFileUpload={handleFileUpload}
+          handleTabKey={handleTabKey}
+        />
+        {/* <div className="editor-wrapper">
           <h2>📝Template Editor</h2>
           <div>
             <label>Template Name:</label>
@@ -336,7 +327,7 @@ function ProjectSetting() {
           <div className='button-row'>
             <Button appearance="primary" onClick={handleSubmit}>Save Template</Button>
           </div>
-        </div>
+        </div> */}
 
         <div className="info-panel">
           <Tabs onChange={(index) => setInfoPanel(index === 0?'templates':'fields')} id="default">

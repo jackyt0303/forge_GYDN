@@ -11,7 +11,6 @@
   }
   
   /* Common panel styles */
-  .editor-wrapper,
   .info-panel {
       /* background: #ffffff; */
       border-radius: 12px;
@@ -20,12 +19,6 @@
       height: 100%;
   }
 
-  .editor-wrapper {
-    flex: 1.5;
-    display: flex;
-    flex-direction: column;
-  }
-  
   .info-panel {
     flex: 1;
     border-radius: 12px;
@@ -36,32 +29,7 @@
     max-width: 28rem;
   }
   
-  .editor {
-    min-height: 25rem;
-    min-width: 30rem;
-    background-color: #1e1e1e;
-    color: #ffffff;
-    font-family: 'Fira Code', monospace;
-    font-size: 14px;
-    border-radius: 6px;
-    padding: 1.5rem;
-    overflow: auto;
-    margin-top: 1rem;
-  }
-
-  .file-upload-row {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-  
   input[type='file'] {
     padding: 5px;
   }
 
-  .button-row{
-    display: flex;
-    justify-content: space-around;
-  }

@@ -1,0 +1,35 @@
+.editor-wrapper{
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    height: 100%;
+    flex: 1.5;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor {
+    min-height: 25rem;
+    min-width: 30rem;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    border-radius: 6px;
+    padding: 1.5rem;
+    overflow: auto;
+    margin-top: 1rem;
+}
+
+.file-upload-row {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.button-row{
+    display: flex;
+    justify-content: space-around;
+}
