@@ -4,12 +4,6 @@ import { invoke } from '@forge/bridge';
 import './ProjectSetting.css';
 import { useAppContext } from '../Context';
 import Button from '@atlaskit/button/new';
-import Modal, {
-	ModalBody,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@atlaskit/modal-dialog';
 import { Stack, Inline, Text } from '@atlaskit/primitives';
 import Textfield from '@atlaskit/textfield';
 import DynamicTable from '@atlaskit/dynamic-table';
@@ -20,7 +14,7 @@ import Tabs, { Tab, TabList, TabPanel } from '@atlaskit/tabs';
 import Loader from '../components/Loader';
 import { validateTemplate } from '../utils/templateValidation';
 import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
-import ModalDialog, { showModalDialog } from '../components/modalDialog';
+import ModalDialog from '../components/modalDialog';
 
 function ProjectSetting() {
   const context = useAppContext();
@@ -28,7 +22,6 @@ function ProjectSetting() {
   const [customFieldValues, setCustomFieldValues] = useState({}); // TODO: Fetch actual values from Jira
   const [customFieldValuesRef, setCustomFieldValuesRef] = useState({});
   const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
   const [code, setCode] = useState(
     '{\n    "Instruction": "${summary}"\n}'
   );
@@ -59,7 +52,7 @@ function ProjectSetting() {
     setAlertMessage('');
     setAlertAction(null);
     setMessage('');
-    setErrorMessage(''); // Add this line to clear error messages
+    // setMessage(''); // Add this line to clear error messages
     setButtonAppearance('subtle');
     setTitleAppearance('warning'); 
     setInfoPanel('templates'); // Reset to default tab
@@ -72,8 +65,13 @@ function ProjectSetting() {
         await fetchCustomFieldValuesRef(); // Fetch custom field values from Jira
         await fetchTemplates();
       } catch (error) {
-        console.error('Error initializing data:', error);
-        setErrorMessage("Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.");
+        handleError(
+          error,
+          "Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
+          'Initialization'
+        );
+        // console.error('Error initializing data:', error);
+        // setMessage("Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.");
       } finally {
         setIsLoading(false); // End loading
       }
@@ -83,7 +81,7 @@ function ProjectSetting() {
 
   useEffect(() => {
     fetchCustomField();
-  }, [infoPanel, code, customFieldValues]); 
+  }, [code]); 
 
   useEffect(() => {
     fetchTemplates();
@@ -95,8 +93,13 @@ function ProjectSetting() {
       const allTemplates = await invoke('getAllTemplate');
       setTemplates(allTemplates);
     } catch (error) {
-      console.error('[PS:main]Error fetching templates:', error);
-      setErrorMessage("We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.");
+      handleError(
+        error,
+        "We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.",
+        'fetching all template'
+      );
+      // console.error('[PS:main]Error fetching templates:', error);
+      // setMessage("We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.");
       // Return empty array to prevent further errors
       setTemplates([]);
     }
@@ -106,8 +109,13 @@ function ProjectSetting() {
     try {
       setCustomFields(extractFieldsFromTemplate(code))
     } catch (error) {
-      console.error('[PS]Error fetching custom fields:', error);
-      setErrorMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.");
+      handleError(
+        error,
+        "Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.",
+        'custom field extraction'
+      );
+      // console.error('[PS]Error fetching custom fields:', error);
+      // setMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.");
       setCustomFields([]);
     }
   };
@@ -118,8 +126,13 @@ function ProjectSetting() {
       setCustomFieldValuesRef(fieldRef); 
       return fieldRef;
     } catch (error) {
-      console.error('Error fetching custom field values:', error);
-      setErrorMessage("Could not retrieve field value references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.");
+      handleError(
+        error,
+        "Could not retrieve project field references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.",
+        'fetching field value references'
+      );
+      // console.error('Error fetching custom field values:', error);
+      // setMessage("Could not retrieve field value references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.");
       setCustomFieldValuesRef({}); // Fallback to empty object
       return {};
     }
@@ -130,44 +143,39 @@ function ProjectSetting() {
       const file = e.target.files[0];
       
       if (!file) {
-        setErrorMessage("No file was selected. Please choose a JSON or XML file to upload.");
+        setMessage("No file was selected. Please choose a JSON or XML file to upload.");
         return;
       }
       
       if (!['json', 'xml'].includes(file.name.split('.').pop().toLowerCase())) {
-        setErrorMessage("Unsupported file type. Please upload only JSON or XML files. Other formats are not compatible with this tool.");
+        setMessage("Unsupported file type. Please upload only JSON or XML files. Other formats are not compatible with this tool.");
         return;
       }
 
       const reader = new FileReader();
       reader.onload = async (event) => {
-        try {
           const rawContent = event.target.result;
           const fileType = file.name.split('.').pop().toLowerCase();
           setLanguage(fileType === 'xml' ? 'xml' : 'json');
           const validation_fu = validateTemplate(rawContent, fileType); 
           
           if (!validation_fu.isValid) {
-            setErrorMessage(`${validation_fu.message} Please fix the errors in your file before uploading again.`);
+            setMessage(`${validation_fu.message} Please fix the errors in your file before uploading again.`);
             return;
           }
-
           setCode(rawContent);
           fetchCustomField(); 
-        } catch (error) {
-          console.error('Error processing uploaded file:', error);
-          setErrorMessage("There was a problem processing your file. Ensure the file content is valid and try again. If the issue persists, try a different file.");
-        }
-      };
-      
-      reader.onerror = () => {
-        setErrorMessage("Failed to read the file. The file might be corrupted or inaccessible. Try a different file or check your browser permissions.");
       };
       
       reader.readAsText(file);
+
     } catch (error) {
-      console.error('Error in file upload:', error);
-      setErrorMessage("An unexpected error occurred while uploading your file. Please try again or use a different file.");
+      handleError(
+        error,
+        "An unexpected error occurred while uploading your file. Please try again or use a different file."
+      );
+      // console.error('Error in file upload:', error);
+      // setMessage("An unexpected error occurred while uploading your file. Please try again or use a different file.");
     }
   };
 
@@ -178,7 +186,7 @@ function ProjectSetting() {
         setIsLoading(true);
         
         if (!templateName) {
-          setErrorMessage("Please enter a template name before saving. A descriptive name helps identify the template later.");
+          setMessage("Please enter a template name before saving. A descriptive name helps identify the template later.");
           setIsLoading(false);
           return;
         }
@@ -188,7 +196,7 @@ function ProjectSetting() {
         
         const validation = validateTemplate(value, language);
         if (!validation.isValid) {
-          setErrorMessage(`${validation.message} Please correct the template format before saving.`);
+          setMessage(`${validation.message} Please correct the template format before saving.`);
           setIsLoading(false);
           return;
         }
@@ -206,10 +214,13 @@ function ProjectSetting() {
           setMessage(`✅ Template saved successfully with name: ${name}`);
         })
         .catch((error) => {
-          console.error('Error saving template:', error);
-          setErrorMessage("Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.");
+          handleError(
+            error,
+            "Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.",
+          );
+          // console.error('Error saving template:', error);
+          // setMessage("Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.");
         });
-
       } catch (err) {
         console.error('Error in handleSubmit:', err);
       } finally {
@@ -227,8 +238,13 @@ function ProjectSetting() {
         await invoke('deleteValue', { payload: { key: key } });
         setMessage(`✅ Template with key ${key} deleted successfully.`);
       } catch (error) {
-        console.error('[PS] Error deleting template:', error);
-        setErrorMessage(`Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`);
+        handleError(
+          error,
+          `Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`,
+          "Delete Template"
+        );
+        // console.error('[PS] Error deleting template:', error);
+        // setMessage(`Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`);
       } finally {
         setIsLoading(false);
       }
@@ -242,11 +258,40 @@ function ProjectSetting() {
         setCode(value.template);
         setLanguage(value.datatype);
       } catch (error) {
-        console.error('[PS] Error editing template code:', error);
-        setErrorMessage("Failed to load the template for editing. The template might be corrupted. Try selecting a different template.");
+        handleError(
+          error,
+          "Failed to load the template for editing. The template might be corrupted. Try selecting a different template.",
+          "Edit code"
+        );
+        // console.error('[PS] Error editing template code:', error);
+        // setMessage("Failed to load the template for editing. The template might be corrupted. Try selecting a different template.");
       }
     });
   };
+
+  const handleError = (error, errorMessage, operation = '') => {
+    const prefix = '[ProjectSetting]';
+    console.error(`${prefix} Error ${operation ? `during ${operation}` : ''}:`, error);
+    setMessage(errorMessage);
+  };
+
+  const handleTabKey = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const updatedCode = 
+        code.substring(0, start) + '    ' + code.substring(end);
+      
+      setCode(updatedCode);
+
+      // Delay updating caret position until after DOM update
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+      }, 0);
+    }
+  }
 
   if (isLoading) {
     return <Loader />
@@ -254,24 +299,10 @@ function ProjectSetting() {
   
   return (
     <div className="project-setting-container">
-      {!!alertMessage && <ModalDialog 
-        message={message}
+      {(!!alertMessage || !!message) && <ModalDialog 
+        message={alertMessage || message}
         handleCancel={handleCancel}
-        handleConfirm={handleConfirm}
-        titleAppearance={titleAppearance}
-        buttonAppearance={buttonAppearance}
-      />}
-      
-      {!!message && <ModalDialog 
-        message={message}
-        handleCancel={handleCancel}
-        titleAppearance={titleAppearance}
-        buttonAppearance={buttonAppearance}
-      />}
-
-      {!!errorMessage && <ModalDialog 
-        message={message}
-        handleCancel={handleCancel}
+        handleConfirm={!!alertMessage? handleConfirm : null}
         titleAppearance={titleAppearance}
         buttonAppearance={buttonAppearance}
       />}
@@ -294,23 +325,7 @@ function ProjectSetting() {
             className='editor'
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                const textarea = e.target;
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const updatedCode = 
-                  code.substring(0, start) + '    ' + code.substring(end);
-                
-                setCode(updatedCode);
-
-                // Delay updating caret position until after DOM update
-                setTimeout(() => {
-                  textarea.selectionStart = textarea.selectionEnd = start + 4;
-                }, 0);
-              }
-            }}
+            onKeyDown={handleTabKey}
             rows={20}
             cols={80}
           />
