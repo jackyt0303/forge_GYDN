@@ -55,3 +55,4 @@ Thumbs.db
 .env.test
 
 /.forge/
+/static/project-setting/build

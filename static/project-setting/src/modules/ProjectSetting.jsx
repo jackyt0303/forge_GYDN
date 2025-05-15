@@ -18,30 +18,8 @@ import EditIcon from '@atlaskit/icon/core/edit';
 import DeleteIcon from '@atlaskit/icon/core/delete';
 import Tabs, { Tab, TabList, TabPanel } from '@atlaskit/tabs';
 import Loader from '../components/Loader';
-
-// Modularized function to validate JSON or XML
-const validateTemplate = (value, language) => {
-  if (!language || language === 'json') {
-    try {
-      JSON.parse(value);
-      return { isValid: true };
-    } catch (err) {
-      return { isValid: false, message: '❌ Invalid JSON format. Please fix errors.' };
-    }
-  }
-
-  if (!language || language === 'xml') {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(value, 'application/xml');
-    const parserError = xmlDoc.querySelector('parsererror');
-    if (parserError) {
-      return { isValid: false, message: `❌ Invalid XML format. ${parserError.textContent}` };
-    }
-    return { isValid: true };
-  }
-
-  return { isValid: false, message: '❌ Unsupported file format. Use JSON or XML.' };
-};
+import { validateTemplate } from '../utils/templateValidation';
+import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
 
 function ProjectSetting() {
   const context = useAppContext();
@@ -125,8 +103,7 @@ function ProjectSetting() {
 
   const fetchCustomField = async () => {
     try {
-      const matches = [...code.matchAll(/\$\{([^}]+)\}/g)].map((m) => m[1]);
-      setCustomFields([...new Set(matches)]);
+      setCustomFields(extractFieldsFromTemplate(code))
     } catch (error) {
       console.error('[PS]Error fetching custom fields:', error);
       setErrorMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.");

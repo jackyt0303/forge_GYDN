@@ -237,6 +237,7 @@ function IssueView(){
             }
             // console.log('missingFieldsHere:', missingFieldsHere);
             if (missingFieldsHere.length > 0) {
+                
                 setMissingFields(missingFieldsHere);
             }
 
