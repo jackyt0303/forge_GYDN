@@ -1,4 +1,5 @@
 .issue-view-container{
+    min-height: 350px;
     width: 100vw;
     display: flex;
     place-items: center;

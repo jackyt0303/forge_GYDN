@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useAppContext } from '../Context';
 import Loader from "../components/Loader";
+import ModalDialog from "../components/ModalDialog";
+import TableList from "../components/TableList";
 import { invoke } from '@forge/bridge';
+import { useTemplate } from '../hooks/usetemplate';
 
 import AddIcon from '@atlaskit/icon/core/add';
 import Button from '@atlaskit/button/new';
@@ -26,6 +29,7 @@ const isEmpty = (value) => {
 
 function IssueView(){
     const context = useAppContext();
+    const { templates, isLoading: templatesLoading, error: templatesError} = useTemplate();
 
     const [issueKey,setIssueKey] = useState(context.extension.issue.key);
     const [issueFields, setIssueFields] = useState([]); // All issue fields values 
@@ -36,8 +40,6 @@ function IssueView(){
     const [templateLanguage, setTemplateLanguage] = useState(''); // Template language, JSON or XML
     const [completedTemplate, setCompletedTemplate] = useState(''); 
 
-    const [templates, setTemplates] = useState([]);
-
     const [dialogAction, setDialogAction] = useState(null);
     const [dialogMessage, setDialogMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
@@ -45,15 +47,10 @@ function IssueView(){
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        //TODO: fetch all current issue fields - done
-        //TODO: fetch all Template - done
         const initializeData = async () => {
             try {
                 setIsLoading(true);
                 console.log('Running initialization...');
-                await fetchTemplates().then((allTemplates) => {
-                    setTemplates(allTemplates);
-                });
                 await fetchIssueFields().then((issueData) => {
                     setIssueFields(issueData);
                 });
@@ -81,17 +78,6 @@ function IssueView(){
         setMissingFieldOperationMessage("");
     };
 
-    const fetchTemplates = async () => {
-        try {
-            const allTemplates = await invoke('getAllTemplate');
-            return allTemplates;
-        } catch (error) {
-            console.error('Error fetching templates:', error);
-            setErrorMessage("We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.");
-            return [];
-        }
-    };
-
     const fetchIssueFields = async () => {
         try {
             const issueData = await invoke("getIssueFields",{payload:{issueKey: issueKey}});
@@ -116,11 +102,10 @@ function IssueView(){
         try {
             setIsLoading(true);
             if (dialogAction) await dialogAction();
- 
         } catch (error) {
             console.error('Error confirming action:', error);
             cleanUp();
-        }finally {
+        } finally {
             setIsLoading(false);
             setDialogAction(null);
             setDialogMessage(null);
@@ -272,121 +257,105 @@ function IssueView(){
         }
     }
 
-    if (isLoading) {
+    if (isLoading || templatesLoading) {
         return <Loader/>;
     }
 
+    if (templatesError) {
+        return (
+            <div className="issue-view-container">
+                <Stack alignInline="center" grow="fill" space="space.200">
+                    <Text>{templatesError.message}</Text>
+                </Stack>
+            </div>
+        );
+    }
+
+    const templateColumns = [
+        {
+            key: 'template',
+            header: 'Template',
+            width: 75,
+            isSortable: true,
+            renderCell: (item) => <Text align="center">{item.value.name}</Text>
+        },
+        {
+            key: 'actions',
+            header: 'Actions',
+            width: 25
+        }
+    ];
+
+    const templateActions = [
+        {
+            icon: AddIcon,
+            label: 'Select',
+            onClick: (item) => handleSelectTemplate(item.value)
+        }
+    ];
+
     return (
         <div className="issue-view-container">
-        <Stack alignInline="center" grow="fill" space="space.200" >
-            {/* //TODO: Show Dialog for template selection, with a button to apply field mapping  */}
-            {!!dialogMessage && (
-                <Modal onClose={handleCancel}>
-                <ModalHeader hasCloseButton>
-                    <ModalTitle appearance='warning'>Confirm Your Template</ModalTitle>
-                </ModalHeader>
-                <ModalBody>
-                {dialogMessage}
-                </ModalBody>
-                <ModalFooter>
-                    <Button appearance="subtle" onClick={handleCancel}>
-                    Cancel
-                    </Button>
-                    <Button appearance='primary' onClick={handleConfirm}>
-                    Verify 
-                    </Button>
-                </ModalFooter>
-                </Modal>
-            )}
+            <Stack alignInline="center" grow="fill" space="space.200">
+                {!!dialogMessage && (
+                    <ModalDialog
+                        message={dialogMessage}
+                        handleCancel={handleCancel}
+                        handleConfirm={handleConfirm}
+                        titleAppearance="warning"
+                        buttonAppearance="primary"
+                    />
+                )}
 
-            {!!errorMessage && (
-                <Modal onClose={handleCancel}>
-                <ModalHeader hasCloseButton>
-                    <ModalTitle appearance='danger'>Unable to Complete Operation</ModalTitle>
-                </ModalHeader>
-                <ModalBody>
-                    <Text as="p">{errorMessage}</Text>
-                    <Text as="p" color="subtle">If this issue persists, please contact Jacky with error code: {Date.now().toString(36)}</Text>
-                </ModalBody>
-                <ModalFooter>
-                    <Button appearance="primary" onClick={()=>setErrorMessage("")}>
-                        Dismiss
-                    </Button>
-                </ModalFooter>
-                </Modal>
-            )}
+                {!!errorMessage && (
+                    <ModalDialog
+                        message={
+                            <>
+                                <Text as="p">{errorMessage}</Text>
+                                <Text as="p" color="subtle">If this issue persists, please contact Jacky with error code: {Date.now().toString(36)}</Text>
+                            </>
+                        }
+                        handleCancel={() => setErrorMessage("")}
+                        titleAppearance="danger"
+                    />
+                )}
 
-            {!!isVerifying ? (
-                <div className="verifying-template-container">
-                    <Stack space="space.200" alignBlock="start" grow="fill">
-                        {(missingFields.length > 0) &&  (<Text>The following custom fields are missing in the current issue's fields, attempted to fill the value from the Description field: <Text as='strong' size="large">{missingFields.join(', ')}</Text></Text>)}
-                        <div className="template-preview">
-                            <CodeBlock language={templateLanguage} text={completedTemplate} />
-                        </div>
-                        <div className="actions-container">
-                            <Button appearance="subtle" onClick={handleCancel}>
-                                Cancel
-                            </Button>
-                            <Button appearance='primary' onClick={handleVerified}>
-                                Download 
-                            </Button>
-                        </div>
-                    </Stack>
-                </div>
-            ):templates.length === 0 ? (
-                <p>No templates available.</p>
-              ) : (
-                <DynamicTable
-                  head={{
-                    cells: [
-                      {
-                        key: 'template',
-                        content: (<Text as='strong' size="large">Template</Text>),
-                        width: 75,
-                        isSortable: true,
-                      },
-                      {
-                        key: 'actions',
-                        content: (<Text as='strong' size="large">Actions</Text>),
-                        width: 25,
-  
-                      },
-                    ],
-                  }}
-                  rows={templates.map(({key, value}) => ({
-                    key: `row-${key}-${value.name}`,
-                    cells: [
-                      {
-                        key: `template-${key}`,
-                        content: <Text align="center">{value.name}</Text>,
-                        align: 'center'
-                      },
-                      {
-                        key: `actions-${key}`,
-                        content: (
-                          <IconButton 
-                            icon={AddIcon} 
-                            label="Select" 
-                            spacing="compact"
-                            onClick={() => handleSelectTemplate(value)}
-                          />
-                        ),
-                        align: 'center'
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={5}
-                  defaultPage={1}
-                  loadingSpinnerSize="large"
-                  isLoading={isLoading}
-                  emptyView={<Text size="large" >No templates found</Text>}
-                />
-              )}       
-        </Stack>
-    </div>
+                {!!isVerifying ? (
+                    <div className="verifying-template-container">
+                        <Stack space="space.200" alignBlock="start" grow="fill">
+                            {(missingFields.length > 0) && (
+                                <Text>
+                                    The following custom fields are missing in the current issue's fields, attempted to fill the value from the Description field:  
+                                    <Text as='strong' size="large">{missingFields.join(', ')}</Text>
+                                </Text>
+                            )}
+                            <div className="template-preview">
+                                <CodeBlock language={templateLanguage} text={completedTemplate} />
+                            </div>
+                            <div className="actions-container">
+                                <Button appearance="subtle" onClick={handleCancel}>
+                                    Cancel
+                                </Button>
+                                <Button appearance='primary' onClick={handleVerified}>
+                                    Download 
+                                </Button>
+                            </div>
+                        </Stack>
+                    </div>
+                ) : (
+                    <TableList
+                        data={templates}
+                        columns={templateColumns}
+                        actions={templateActions}
+                        isLoading={isLoading}
+                        emptyMessage="No templates available"
+                        idField="key"
+                    />
+                )}
+            </Stack>
+        </div>
     );
 }
-
 
 export default IssueView;
 
