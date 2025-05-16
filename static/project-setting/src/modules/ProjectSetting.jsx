@@ -1,29 +1,31 @@
 // src/project-setting/src/App.jsx
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@forge/bridge';
+
 import './ProjectSetting.css';
+
 import { useAppContext } from '../Context';
-import Button from '@atlaskit/button/new';
-import { Stack, Inline, Text } from '@atlaskit/primitives';
-import Textfield from '@atlaskit/textfield';
+
+import { validateTemplate } from '../utils/templateValidation';
+import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
+
+import Loader from '../components/Loader';
+import ModalDialog from '../components/modalDialog';
+import TemplateEditor from '../components/TemplateEditor';
+
+import { Inline, Text } from '@atlaskit/primitives';
 import DynamicTable from '@atlaskit/dynamic-table';
 import { IconButton } from '@atlaskit/button/new';
 import EditIcon from '@atlaskit/icon/core/edit';
 import DeleteIcon from '@atlaskit/icon/core/delete';
-import Tabs, { Tab, TabList, TabPanel } from '@atlaskit/tabs';
-import Loader from '../components/Loader';
-import { validateTemplate } from '../utils/templateValidation';
-import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
-import ModalDialog from '../components/modalDialog';
-import TemplateEditor from '../components/TemplateEditor';
+import Tabs, { Tab, TabList } from '@atlaskit/tabs';
+
 
 function ProjectSetting() {
   const context = useAppContext();
   const [customFields, setCustomFields] = useState([]);
-  const [customFieldValues, setCustomFieldValues] = useState({}); // TODO: Fetch actual values from Jira
-  const [customFieldValuesRef, setCustomFieldValuesRef] = useState({});
-  const [message, setMessage] = useState('');
-  const [code, setCode] = useState(
+  const [projectField, setprojectField] = useState({});
+  const [templateCode, setTemplateCode] = useState(
     '{\n    "Instruction": "${summary}"\n}'
   );
   const [language, setLanguage] = useState('json');
@@ -31,39 +33,72 @@ function ProjectSetting() {
   const [templateName, setTemplateName] = useState('');
   const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true); // New loading state
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertAction, setAlertAction] = useState(null);
-  const [buttonAppearance, setButtonAppearance] = useState('subtle'); 
-  const [titleAppearance, setTitleAppearance] = useState('warning'); // Default appearance for the message modal
+
+  const [modalState, setModalState] = useState({
+    message: '',           // Regular message
+    alertMessage: '',      // Confirmation message
+    alertAction: null,     // Action to perform on confirmation
+    buttonAppearance: 'subtle',
+    titleAppearance: 'warning'
+  });
+  
 
   const showAlert = (message, action) => {
-    setAlertMessage(message);
-    setAlertAction(() => action);
+    setModalState(prevState=>({
+      ...prevState,
+      alertMessage: message,
+      alertAction: action
+    }))
   };
 
   const handleConfirm = async () => {
-    if (alertAction) await alertAction();
-    setAlertMessage('');
-    setAlertAction(null);
-    setButtonAppearance('subtle'); 
-    setTitleAppearance('warning'); 
+    if (modalState.alertAction) await modalState.alertAction();
+    setModalState(prevState=>({
+      ...prevState,
+      alertMessage: '',
+      alertAction: null,
+      buttonAppearance:'subtle',
+      titleAppearance:'warning'
+    }))
   };
 
   const handleCancel = () => {
-    setAlertMessage('');
-    setAlertAction(null);
-    setMessage('');
-    // setMessage(''); // Add this line to clear error messages
-    setButtonAppearance('subtle');
-    setTitleAppearance('warning'); 
+    setModalState({
+      message: '',
+      alertMessage: '',
+      alertAction: null,
+      buttonAppearance: 'subtle',
+      titleAppearance: 'warning'
+    });
     setInfoPanel('templates'); // Reset to default tab
+  };
+
+  const setMessage = (message) => {
+    setModalState(prevState => ({
+      ...prevState,
+      message
+    }));
+  };
+
+  const setButtonAppearance = (appearance) => {
+    setModalState(prevState => ({
+      ...prevState,
+      buttonAppearance: appearance
+    }));
+  };
+  
+  const setTitleAppearance = (appearance) => {
+    setModalState(prevState => ({
+      ...prevState,
+      titleAppearance: appearance
+    }));
   };
 
   useEffect(() => {
     const initializeData = async () => {
       try {
         setIsLoading(true); // Start loading
-        await fetchCustomFieldValuesRef(); // Fetch custom field values from Jira
+        await fetchprojectField(); // Fetch custom field values from Jira
         await fetchTemplates();
       } catch (error) {
         handleError(
@@ -80,7 +115,7 @@ function ProjectSetting() {
 
   useEffect(() => {
     fetchCustomField();
-  }, [code]); 
+  }, [templateCode]); 
 
   const fetchTemplates = async () => {
     try {
@@ -98,7 +133,7 @@ function ProjectSetting() {
 
   const fetchCustomField = async () => {
     try {
-      setCustomFields(extractFieldsFromTemplate(code))
+      setCustomFields(extractFieldsFromTemplate(templateCode))
     } catch (error) {
       handleError(
         error,
@@ -109,10 +144,10 @@ function ProjectSetting() {
     }
   };
 
-  const fetchCustomFieldValuesRef = async () => {
+  const fetchprojectField = async () => {
     try {
       const fieldRef = await invoke('getFieldValuesRef', { payload: { pkey: context.extension.project.key } });
-      setCustomFieldValuesRef(fieldRef); 
+      setprojectField(fieldRef); 
       return fieldRef;
     } catch (error) {
       handleError(
@@ -120,7 +155,7 @@ function ProjectSetting() {
         "Could not retrieve project field references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.",
         'fetching field value references'
       );
-      setCustomFieldValuesRef({}); // Fallback to empty object
+      setprojectField({}); // Fallback to empty object
       return {};
     }
   };
@@ -150,7 +185,7 @@ function ProjectSetting() {
             setMessage(`${validation_fu.message} Please fix the errors in your file before uploading again.`);
             return;
           }
-          setCode(rawContent);
+          setTemplateCode(rawContent);
           fetchCustomField(); 
       };
       
@@ -176,7 +211,7 @@ function ProjectSetting() {
           return;
         }
         
-        const value = code;
+        const value = templateCode;
         const tempName = templateName || 'Unnamed Template'; 
         
         const validation = validateTemplate(value, language);
@@ -234,17 +269,17 @@ function ProjectSetting() {
     });
   };
 
-  const handleEditCode = async (value) => {
+  const handleEditTemplateCode = async (value) => {
     setButtonAppearance('primary');
     showAlert('Are you sure you want to edit this template?', () => {
       try {
-        setCode(value.template);
+        setTemplateCode(value.template);
         setLanguage(value.datatype);
       } catch (error) {
         handleError(
           error,
           "Failed to load the template for editing. The template might be corrupted. Try selecting a different template.",
-          "Edit code"
+          "Edit templateCode"
         );
       }
     });
@@ -262,10 +297,10 @@ function ProjectSetting() {
       const textarea = e.target;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const updatedCode = 
-        code.substring(0, start) + '    ' + code.substring(end);
+      const updatedTemplateCode = 
+        templateCode.substring(0, start) + '    ' + templateCode.substring(end);
       
-      setCode(updatedCode);
+      setTemplateCode(updatedTemplateCode);
 
       // Delay updating caret position until after DOM update
       setTimeout(() => {
@@ -280,18 +315,19 @@ function ProjectSetting() {
   
   return (
     <div className="project-setting-container">
-      {(!!alertMessage || !!message) && <ModalDialog 
-        message={alertMessage || message}
-        handleCancel={handleCancel}
-        handleConfirm={!!alertMessage? handleConfirm : null}
-        titleAppearance={titleAppearance}
-        buttonAppearance={buttonAppearance}
-      />}
+      {(!!modalState.alertMessage || !!modalState.message) && 
+        <ModalDialog 
+          message={modalState.alertMessage || modalState.message}
+          handleCancel={handleCancel}
+          handleConfirm={!!modalState.alertMessage? handleConfirm : null}
+          titleAppearance={modalState.titleAppearance}
+          buttonAppearance={modalState.buttonAppearance}
+        />}
       
       <Inline space='space.200' grow='fill'>
       <TemplateEditor
-          code={code}
-          setCode={setCode}
+          code={templateCode} 
+          setcode={setTemplateCode} 
           templateName={templateName}
           setTemplateName={setTemplateName}
           language={language}
@@ -299,35 +335,6 @@ function ProjectSetting() {
           handleFileUpload={handleFileUpload}
           handleTabKey={handleTabKey}
         />
-        {/* <div className="editor-wrapper">
-          <h2>📝Template Editor</h2>
-          <div>
-            <label>Template Name:</label>
-            <Textfield 
-              id="atlaskit-textfield"
-              appearance="standard"
-              placeholder="Enter Your Template Name here"
-              isRequired = 'true'
-              onChange={(e) => setTemplateName(e.target.value)}
-            />
-          </div>
-          
-          <textarea
-            className='editor'
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={handleTabKey}
-            rows={20}
-            cols={80}
-          />
-          <div className="file-upload-row">
-            <label>Upload JSON/XML:</label>
-            <input type="file" accept=".json,.xml" onChange={handleFileUpload} />
-          </div>
-          <div className='button-row'>
-            <Button appearance="primary" onClick={handleSubmit}>Save Template</Button>
-          </div>
-        </div> */}
 
         <div className="info-panel">
           <Tabs onChange={(index) => setInfoPanel(index === 0?'templates':'fields')} id="default">
@@ -379,7 +386,7 @@ function ProjectSetting() {
                         key: `actions-${key}`,
                         content: (
                           <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <IconButton icon={EditIcon} label="Edit" onClick={() => handleEditCode(value)}/>
+                            <IconButton icon={EditIcon} label="Edit" onClick={() => handleEditTemplateCode(value)}/>
                             <IconButton icon={DeleteIcon} label="Delete" onClick={() => handleDelete(key)}/>
                           </div>
                         ),
@@ -433,7 +440,7 @@ function ProjectSetting() {
                       },
                       {
                         key: `actions-${field}`,
-                        content: (<Text>{(customFieldValuesRef[field]) ? 'Available':'Not Found'}</Text>),
+                        content: (<Text>{(projectField[field]) ? 'Available':'Not Found'}</Text>),
                       },
                     ],
                   }))}
@@ -467,7 +474,7 @@ function ProjectSetting() {
                       },
                     ],
                   }}
-                  rows={Object.entries(customFieldValuesRef).map(([field, value]) =>({
+                  rows={Object.entries(projectField).map(([field, value]) =>({
                     key: `row-${field}`,
                     cells: [
                       {
