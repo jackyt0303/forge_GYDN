@@ -10,12 +10,11 @@ import { validateTemplate } from '../utils/templateValidation';
 import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
 
 import Loader from '../components/Loader';
-import ModalDialog from '../components/modalDialog';
+import ModalDialog from '../components/ModalDialog';
 import TemplateEditor from '../components/TemplateEditor';
+import TableList from '../components/TableList';
 
 import { Inline, Text } from '@atlaskit/primitives';
-import DynamicTable from '@atlaskit/dynamic-table';
-import { IconButton } from '@atlaskit/button/new';
 import EditIcon from '@atlaskit/icon/core/edit';
 import DeleteIcon from '@atlaskit/icon/core/delete';
 import Tabs, { Tab, TabList } from '@atlaskit/tabs';
@@ -239,6 +238,7 @@ function ProjectSetting() {
             "Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.",
           );
         });
+        
       } catch (err) {
         console.error('Error in handleSubmit:', err);
       } finally {
@@ -346,153 +346,92 @@ function ProjectSetting() {
 
           {infoPanel === 'templates' ? (
             <div>
-              {templates.length === 0 ? (
-                <p>No templates available.</p>
-              ) : (
-                <>                
-                <DynamicTable
-                  caption="Available Templates"
-                  head={{
-                    cells: [
-                      {
-                        key: 'template',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Template</Text>
-                          </div>
-                        ),
-                        width: 70,
-                        isSortable: true,
-                      },
-                      {
-                        key: 'actions',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Actions</Text>
-                          </div>
-                        ),
-                        width: 30,
-                      },
-                    ],
-                  }}
-                  rows={templates.map(({key, value}) => ({
-                    key: `row-${key}`,
-                    cells: [
-                      {
-                        key: `template-${key}`,
-                        content: <div style={{ textAlign: 'center' }}>{value.name}</div>,
-                      },
-                      {
-                        key: `actions-${key}`,
-                        content: (
-                          <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <IconButton icon={EditIcon} label="Edit" onClick={() => handleEditTemplateCode(value)}/>
-                            <IconButton icon={DeleteIcon} label="Delete" onClick={() => handleDelete(key)}/>
-                          </div>
-                        ),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={10}
-                  defaultPage={1}
-                  loadingSpinnerSize="large"
-                  isLoading={isLoading}
-                  emptyView={<Text>No templates found</Text>}
-                />
-                </>
-              )
-              }
-              
+              <TableList 
+                data={templates.map(({key, value}) => ({
+                  key,
+                  name: value.name,
+                  value
+                }))}
+                caption="Available Templates"
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Template',
+                    width: 70,
+                    isSortable: true
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    width: 30
+                  }
+                ]}
+                actions={[
+                  {
+                    icon: EditIcon,
+                    label: 'Edit',
+                    onClick: (item) => handleEditTemplateCode(item.value)
+                  },
+                  {
+                    icon: DeleteIcon,
+                    label: 'Delete',
+                    onClick: (item) => handleDelete(item.key)
+                  }
+                ]}
+                rowsPerPage={10}
+                isLoading={isLoading}
+                emptyMessage="No templates found"
+                idField="key"
+              />
             </div>
           ) : (
             <div>
-              <DynamicTable
-                  caption="Detected Fields"
-                  head={{
-                    cells: [
-                      {
-                        key: 'template',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Field ID</Text>
-                          </div>
-                        ),
-                        width: 60,
-                        isSortable: true,
-                      },
-                      {
-                        key: 'actions',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Availability</Text>
-                          </div>
-                        ),
-                        width: 40,
-                      },
-                    ],
-                  }}
-                  rows={customFields.map((field) => ({
-                    key: `row-${field}`,
-                    cells: [
-                      {
-                        key: `cell-${field}`,
-                        content: <div style={{ textAlign: 'center' }}>{field}</div>,
-                      },
-                      {
-                        key: `actions-${field}`,
-                        content: (<Text>{(projectField[field]) ? 'Available':'Not Found'}</Text>),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={5}
-                  defaultPage={1}
-                  loadingSpinnerSize="medium"
-                  isLoading={isLoading}
-                  emptyView={<Text>No fields found</Text>}
-                />
-              <DynamicTable
-                  caption="Project Fields"
-                  head={{
-                    cells: [
-                      {
-                        key: 'ProjectFieldID',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Field ID</Text>
-                          </div>
-                        ),
-                        isSortable: true,
-                      },
-                      {
-                        key: 'ProjectFieldName',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Name</Text>
-                          </div>
-                        ),
-                        isSortable: true,
-                      },
-                    ],
-                  }}
-                  rows={Object.entries(projectField).map(([field, value]) =>({
-                    key: `row-${field}`,
-                    cells: [
-                      {
-                        key: `cell-${field}`,
-                        content: <div style={{ textAlign: 'center' }}>{field}</div>,
-                      },
-                      {
-                        key: `actions-${field}`,
-                        content: (<Text>{value ? value : 'Not Found'}</Text>),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={8}
-                  defaultPage={1}
-                  loadingSpinnerSize="medium"
-                  isLoading={isLoading}
-                  emptyView={<Text>No fields found</Text>}
-                />
+              <TableList 
+                data={customFields.map(field => ({
+                  field,
+                  availability: projectField[field] ? 'Available' : 'Not Found'
+                }))}
+                caption="Detected Fields"
+                columns={[
+                  {
+                    key: 'field',
+                    header: 'Field ID',
+                    width: 60,
+                    isSortable: true
+                  },
+                  {
+                    key: 'availability',
+                    header: 'Availability',
+                    width: 40
+                  }
+                ]}
+                rowsPerPage={5}
+                isLoading={isLoading}
+                emptyMessage="No fields found"
+              />
+
+              <TableList 
+                data={Object.entries(projectField).map(([field, value]) => ({
+                  field,
+                  name: value ? value : 'Not Found'
+                }))}
+                caption="Project Fields"
+                columns={[
+                  {
+                    key: 'field',
+                    header: 'Field ID',
+                    isSortable: true
+                  },
+                  {
+                    key: 'name',
+                    header: 'Name',
+                    isSortable: true
+                  }
+                ]}
+                rowsPerPage={8}
+                isLoading={isLoading}
+                emptyMessage="No fields found"
+              />
             </div>
           )}
         </div>
