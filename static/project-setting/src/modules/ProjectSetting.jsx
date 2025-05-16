@@ -1,12 +1,12 @@
-// src/project-setting/src/App.jsx
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@forge/bridge';
 
 import './ProjectSetting.css';
 
 import { useAppContext } from '../Context';
+import { useTemplate } from '../hooks/usetemplate';
+import { useTemplateActions } from '../hooks/useTemplateActions';
 
-import { validateTemplate } from '../utils/templateValidation';
 import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
 
 import Loader from '../components/Loader';
@@ -22,15 +22,14 @@ import Tabs, { Tab, TabList } from '@atlaskit/tabs';
 
 function ProjectSetting() {
   const context = useAppContext();
+  
+  
   const [customFields, setCustomFields] = useState([]);
   const [projectField, setprojectField] = useState({});
-  const [templateCode, setTemplateCode] = useState(
-    '{\n    "Instruction": "${summary}"\n}'
-  );
+  const [templateCode, setTemplateCode] = useState('{\n    "Instruction": "${summary}"\n}');
   const [language, setLanguage] = useState('json');
   const [infoPanel, setInfoPanel] = useState('templates'); // either 'templates' or 'fields' //tabs 
   const [templateName, setTemplateName] = useState('');
-  const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true); // New loading state
 
   const [modalState, setModalState] = useState({
@@ -40,7 +39,11 @@ function ProjectSetting() {
     buttonAppearance: 'subtle',
     titleAppearance: 'warning'
   });
-  
+  const { templates, 
+          isLoading: templatesLoading, 
+          error: templateError, 
+          createTemplate, 
+          deleteTemplate } = useTemplate(context.extension.project.key);
 
   const showAlert = (message, action) => {
     setModalState(prevState=>({
@@ -93,20 +96,44 @@ function ProjectSetting() {
     }));
   };
 
+  const { handleSubmit, handleFileUpload, handleDelete } = useTemplateActions({
+    templateCode,
+    templateName,
+    language,
+    createTemplate,
+    setMessage,
+    setButtonAppearance,
+    setTitleAppearance,
+    showAlert,
+    setIsLoading,
+    deleteTemplate,
+    setTemplateCode, 
+    setLanguage
+  });
+
+  useEffect(() => {
+    if (templateError) {
+      handleError(
+        null,
+        templateError.message,
+        templateError.operation
+      );
+    }
+  }, [templateError]);
+
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoading(true); // Start loading
-        await fetchprojectField(); // Fetch custom field values from Jira
-        await fetchTemplates();
+        setIsLoading(true);
+        await fetchprojectField();
       } catch (error) {
         handleError(
           error,
-          "Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
+          "Unable to load project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
           'Initialization'
         );
       } finally {
-        setIsLoading(false); // End loading
+        setIsLoading(false);
       }
     };
     initializeData();
@@ -115,20 +142,6 @@ function ProjectSetting() {
   useEffect(() => {
     fetchCustomField();
   }, [templateCode]); 
-
-  const fetchTemplates = async () => {
-    try {
-      const allTemplates = await invoke('getAllTemplate');
-      setTemplates(allTemplates);
-    } catch (error) {
-      handleError(
-        error,
-        "We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.",
-        'fetching all template'
-      );
-      setTemplates([]);
-    }
-  };
 
   const fetchCustomField = async () => {
     try {
@@ -157,116 +170,6 @@ function ProjectSetting() {
       setprojectField({}); // Fallback to empty object
       return {};
     }
-  };
-
-  const handleFileUpload = async (e) => {
-    try {
-      const file = e.target.files[0];
-      
-      if (!file) {
-        setMessage("No file was selected. Please choose a JSON or XML file to upload.");
-        return;
-      }
-      
-      if (!['json', 'xml'].includes(file.name.split('.').pop().toLowerCase())) {
-        setMessage("Unsupported file type. Please upload only JSON or XML files. Other formats are not compatible with this tool.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-          const rawContent = event.target.result;
-          const fileType = file.name.split('.').pop().toLowerCase();
-          setLanguage(fileType === 'xml' ? 'xml' : 'json');
-          const validation_fu = validateTemplate(rawContent, fileType); 
-          
-          if (!validation_fu.isValid) {
-            setMessage(`${validation_fu.message} Please fix the errors in your file before uploading again.`);
-            return;
-          }
-          setTemplateCode(rawContent);
-          fetchCustomField(); 
-      };
-      
-      reader.readAsText(file);
-
-    } catch (error) {
-      handleError(
-        error,
-        "An unexpected error occurred while uploading your file. Please try again or use a different file."
-      );
-    }
-  };
-
-  const handleSubmit = async () => {
-    setButtonAppearance('primary'); 
-    showAlert('Are you sure you want to save this template?', async () => {
-      try {
-        setIsLoading(true);
-        
-        if (!templateName) {
-          setMessage("Please enter a template name before saving. A descriptive name helps identify the template later.");
-          setIsLoading(false);
-          return;
-        }
-        
-        const value = templateCode;
-        const tempName = templateName || 'Unnamed Template'; 
-        
-        const validation = validateTemplate(value, language);
-        if (!validation.isValid) {
-          setMessage(`${validation.message} Please correct the template format before saving.`);
-          setIsLoading(false);
-          return;
-        }
-
-        // Store template in forge storage
-        await invoke('saveValueWithGeneratedKey', { 
-          payload: { 
-            projectKey: context.extension.project.key, 
-            value: value, 
-            dataType: language, 
-            name: tempName
-          }
-        })
-        .then((name) => {
-          setMessage(`✅ Template saved successfully with name: ${name}`);
-        })
-        .catch((error) => {
-          handleError(
-            error,
-            "Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.",
-          );
-        });
-        
-      } catch (err) {
-        console.error('Error in handleSubmit:', err);
-      } finally {
-        setIsLoading(false);
-        fetchTemplates();
-      }
-    });
-  };
-
-  const handleDelete = async (key) => {
-    setButtonAppearance('danger');
-    setTitleAppearance('danger');
-    showAlert(`Are you sure you want to delete the template with key: ${key}?`, async () => {
-      try {
-        setIsLoading(true);
-        await invoke('deleteValue', { payload: { key: key } });
-        setMessage(`✅ Template with key ${key} deleted successfully.`);
-      } catch (error) {
-        handleError(
-          error,
-          `Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`,
-          "Delete Template"
-        );
-      } finally {
-        setIsLoading(false);
-        fetchTemplates();
-      }
-    });
   };
 
   const handleEditTemplateCode = async (value) => {
@@ -309,7 +212,7 @@ function ProjectSetting() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || templatesLoading) {
     return <Loader />
   }
   
