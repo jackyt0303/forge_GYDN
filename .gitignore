@@ -58,3 +58,4 @@ Thumbs.db
 /static/project-setting/build
 
 pnpm-lock.yaml
+pnpm-workspace.yaml

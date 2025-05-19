@@ -3,13 +3,13 @@ import { useAppContext } from '../Context';
 import Loader from "../components/Loader";
 import ModalDialog from "../components/ModalDialog";
 import TableList from "../components/TableList";
+import VerifyTemplate from "../components/VerifyTemplate";
 import { invoke } from '@forge/bridge';
 import { useTemplate } from '../hooks/usetemplate';
 
 import AddIcon from '@atlaskit/icon/core/add';
 import Button from '@atlaskit/button/new';
 import { Stack, Text } from '@atlaskit/primitives';
-import { CodeBlock } from '@atlaskit/code';
 import './IssueView.css';
 
 const isEmpty = (value) => {
@@ -32,12 +32,56 @@ function IssueView(){
     const [templateLanguage, setTemplateLanguage] = useState(''); // Template language, JSON or XML
     const [completedTemplate, setCompletedTemplate] = useState(''); 
 
-    const [dialogAction, setDialogAction] = useState(null);
-    const [dialogMessage, setDialogMessage] = useState("");
-    const [errorMessage, setErrorMessage] = useState("");
+    // Updated modal state management similar to ProjectSetting.jsx
+    const [modalState, setModalState] = useState({
+        message: '',           // Regular message
+        alertMessage: '',      // Confirmation message
+        alertAction: null,     // Action to perform on confirmation
+        buttonAppearance: 'primary',
+        titleAppearance: 'warning'
+    });
+    
     const [missingFieldOperationMessage, setMissingFieldOperationMessage] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
+    // Helper functions for modal state management
+    const showAlert = (message, action) => {
+        setModalState(prevState => ({
+            ...prevState,
+            alertMessage: message,
+            alertAction: action
+        }));
+    };
+
+    const setMessage = (message) => {
+        setModalState(prevState => ({
+            ...prevState,
+            message
+        }));
+    };
+
+    const setButtonAppearance = (appearance) => {
+        setModalState(prevState => ({
+            ...prevState,
+            buttonAppearance: appearance
+        }));
+    };
+    
+    const setTitleAppearance = (appearance) => {
+        setModalState(prevState => ({
+            ...prevState,
+            titleAppearance: appearance
+        }));
+    };
+
+    // Adding handleError function similar to ProjectSetting.jsx
+    const handleError = (error, errorMessage, operation = '') => {
+        const prefix = '[IssueView]';
+        console.error(`${prefix} Error ${operation ? `during ${operation}` : ''}:`, error);
+        setMessage(errorMessage);
+        setTitleAppearance('danger');
+    };    
+    
     useEffect(() => {
         const initializeData = async () => {
             try {
@@ -48,9 +92,11 @@ function IssueView(){
                 });
 
             } catch(error) {
-                console.error('Error initializing data:', error);
-                setErrorMessage('Unable to load templates and issue data. Please try refreshing the page. If the problem persists, check your network connection or contact support.');
-                handleAlert('Error initializing data: ' + error.message, null);
+                handleError(
+                    error,
+                    "Unable to load templates and issue data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
+                    'Initialization'
+                );
             } finally {
                 setIsLoading(false);
             } 
@@ -59,48 +105,54 @@ function IssueView(){
     },[issueKey]);
 
     const cleanUp = () => {
-        setDialogMessage("");
-        setDialogAction(null);
-        setErrorMessage("");
+        setModalState({
+            message: '',           // Regular message
+            alertMessage: '',      // Confirmation message
+            alertAction: null,     // Action to perform on confirmation
+            buttonAppearance: 'primary',
+            titleAppearance: 'warning'
+        });
         setIsVerifying(false);
         setMissingFields([]);
         setCompletedTemplate("");
         setTemplateName('');
         setTemplateLanguage('');
         setMissingFieldOperationMessage("");
-    };
-
-    const fetchIssueFields = async () => {
+    };    const fetchIssueFields = async () => {
         try {
             const issueData = await invoke("getIssueFields",{payload:{issueKey: issueKey}});
             return issueData;
         } catch (error) {
-            console.error('Error fetching IssueFields:', error);
-            setErrorMessage("Unable to load issue data. This might be due to missing permissions or a network issue. Please refresh the page or contact support.");
+            handleError(
+                error,
+                "Unable to load issue data. This might be due to missing permissions or a network issue. Please refresh the page or contact support.",
+                'fetching issue fields'
+            );
             return {};
         }
     };
 
-    const handleAlert = (message, action) => {
-        setDialogMessage(message);
-        setDialogAction(() => action);
-    }
-
     const handleCancel = () => {
         cleanUp();
-    }
-
+    }    
+    
     const handleConfirm = async () => {
         try {
             setIsLoading(true);
-            if (dialogAction) await dialogAction();
+            if (modalState.alertAction) await modalState.alertAction();
         } catch (error) {
-            console.error('Error confirming action:', error);
-            cleanUp();
+            handleError(
+                error,
+                "There was an error while performing this action. Please try again or contact support.",
+                'confirmation action'
+            );
         } finally {
             setIsLoading(false);
-            setDialogAction(null);
-            setDialogMessage(null);
+            setModalState(prevState => ({
+                ...prevState,
+                alertAction: null,
+                alertMessage: ''
+            }));
         }      
     }
 
@@ -110,7 +162,7 @@ function IssueView(){
             return([...new Set(matches)]);
         } catch (error) {
             console.error('[IP]Error fetching custom fields:', error);
-            setErrorMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different template.");
+            setMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different template.");
             return [];
         }
       };
@@ -145,7 +197,7 @@ function IssueView(){
             
         } catch (error) {
             console.error("Error downloading the template:", error);
-            setErrorMessage("We couldn't generate your download. Please check if your browser allows downloads from this site, or try saving the content manually by copying it to a text file.");
+            setMessage("We couldn't generate your download. Please check if your browser allows downloads from this site, or try saving the content manually by copying it to a text file.");
             cleanUp();
         } finally{
             // Optional cleanup
@@ -155,7 +207,7 @@ function IssueView(){
     
 
     const handleSelectTemplate = async (template) => {
-        handleAlert(`Are you sure you want to select the template "${template.name}"?`, async () => {
+        showAlert(`Are you sure you want to select the template "${template.name}"?`, async () => {
         try {
             // Extract fields from the template
             const customFields = await fetchCustomField(template.template);
@@ -182,7 +234,7 @@ function IssueView(){
             setIsVerifying(true);
         } catch (error) {
             console.error('Error selecting template:', error);
-            setErrorMessage(`There was a problem processing template "${template.name}". This might be due to missing fields or formatting issues. Try a different template or contact support for assistance.`);
+            setMessage(`There was a problem processing template "${template.name}". This might be due to missing fields or formatting issues. Try a different template or contact support for assistance.`);
             cleanUp();
         }         
         });
@@ -245,7 +297,7 @@ function IssueView(){
             return finalTemplate;
         } catch (error) {
             console.error('Error modifying template:', error);
-            setErrorMessage('Failed to map field values to the template. This might be due to unexpected characters in the field values. Try again with different field values or contact support.');
+            setMessage('Failed to map field values to the template. This might be due to unexpected characters in the field values. Try again with different field values or contact support.');
         }
     }
 
@@ -289,51 +341,24 @@ function IssueView(){
     return (
         <div className="issue-view-container">
             <Stack alignInline="center" grow="fill" space="space.200">
-                {!!dialogMessage && (
+                {(!!modalState.alertMessage|| !!modalState.message ) && (
                     <ModalDialog
-                        message={dialogMessage}
+                        message={modalState.alertMessage || modalState.message}
                         handleCancel={handleCancel}
-                        handleConfirm={handleConfirm}
-                        titleAppearance="warning"
-                        buttonAppearance="primary"
+                        handleConfirm={!!modalState.alertMessage? handleConfirm : null}
+                        titleAppearance={modalState.titleAppearance}
+                        buttonAppearance={!!modalState.alertMessage? modalState.buttonAppearance : "danger"}
                     />
                 )}
-
-                {!!errorMessage && (
-                    <ModalDialog
-                        message={
-                            <>
-                                <Text as="p">{errorMessage}</Text>
-                                <Text as="p" color="subtle">If this issue persists, please contact Jacky with error code: {Date.now().toString(36)}</Text>
-                            </>
-                        }
-                        handleCancel={() => setErrorMessage("")}
-                        titleAppearance="danger"
-                    />
-                )}
-
+                
                 {!!isVerifying ? (
-                    <div className="verifying-template-container">
-                        <Stack space="space.200" alignBlock="start" grow="fill">
-                            {(missingFields.length > 0) && (
-                                <Text>
-                                    The following custom fields are missing in the current issue's fields, attempted to fill the value from the Description field:  
-                                    <Text as='strong' size="large">{missingFields.join(', ')}</Text>
-                                </Text>
-                            )}
-                            <div className="template-preview">
-                                <CodeBlock language={templateLanguage} text={completedTemplate} />
-                            </div>
-                            <div className="actions-container">
-                                <Button appearance="subtle" onClick={handleCancel}>
-                                    Cancel
-                                </Button>
-                                <Button appearance='primary' onClick={handleVerified}>
-                                    Download 
-                                </Button>
-                            </div>
-                        </Stack>
-                    </div>
+                    <VerifyTemplate
+                        missingFields={missingFields}
+                        templateLanguage={templateLanguage}
+                        completedTemplate={completedTemplate}
+                        onCancel={handleCancel}
+                        onVerified={handleVerified}
+                    />
                 ) : (
                     <TableList
                         data={templates}
