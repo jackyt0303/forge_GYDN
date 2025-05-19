@@ -25,7 +25,8 @@ const resolver = new Resolver();
   resolver.define('deleteValue', async ({ payload }) => {
     const { key } = payload.payload;
     console.log('reach delete resolver, with key: ', key)
-    return await deleteValue(key);
+    const targetName = await deleteValue(key);
+    return targetName;
   });
   
   resolver.define('getAllTemplate', async () => {

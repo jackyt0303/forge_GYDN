@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { invoke } from '@forge/bridge';
 
 import './ProjectSetting.css';
@@ -42,8 +42,9 @@ function ProjectSetting() {
   const { templates, 
           isLoading: templatesLoading, 
           error: templateError, 
+          fetchTemplates,
           createTemplate, 
-          deleteTemplate } = useTemplate(context.extension.project.key);
+          deleteTemplate } = useTemplate(context.extension.project.key); // add fetchtemplate at the useeffect at the mainfile
 
   const showAlert = (message, action) => {
     setModalState(prevState=>({
@@ -212,8 +213,29 @@ function ProjectSetting() {
     }
   }
 
+  const templateData = useMemo(() => {
+    return templates.map(({key, value}) => ({
+      key,
+      name: value.name,
+      value
+    }));
+  }, [templates]);
+
+  const fieldData = useMemo(() => {
+    return customFields.map(field => ({
+      field,
+      availability: projectField[field] ? 'Available' : 'Not Found'
+    }));
+  }, [customFields,projectField]);
+
+  const projectFieldData = useMemo(() => 
+    Object.entries(projectField).map(([field, value]) => ({
+      field,
+      name: value ? value : 'Not Found'
+    })), [projectField]);
+
   if (isLoading || templatesLoading) {
-    return <Loader />
+    return <Loader />;
   }
   
   return (
@@ -229,8 +251,8 @@ function ProjectSetting() {
       
       <Inline space='space.200' grow='fill'>
       <TemplateEditor
-          code={templateCode} 
-          setcode={setTemplateCode} 
+          templateCode={templateCode}
+          setTemplateCode={setTemplateCode} 
           templateName={templateName}
           setTemplateName={setTemplateName}
           language={language}
@@ -250,11 +272,7 @@ function ProjectSetting() {
           {infoPanel === 'templates' ? (
             <div>
               <TableList 
-                data={templates.map(({key, value}) => ({
-                  key,
-                  name: value.name,
-                  value
-                }))}
+                data={templateData}
                 caption="Available Templates"
                 columns={[
                   {
@@ -290,10 +308,7 @@ function ProjectSetting() {
           ) : (
             <div>
               <TableList 
-                data={customFields.map(field => ({
-                  field,
-                  availability: projectField[field] ? 'Available' : 'Not Found'
-                }))}
+                data={fieldData}
                 caption="Detected Fields"
                 columns={[
                   {
@@ -314,10 +329,7 @@ function ProjectSetting() {
               />
 
               <TableList 
-                data={Object.entries(projectField).map(([field, value]) => ({
-                  field,
-                  name: value ? value : 'Not Found'
-                }))}
+                data={projectFieldData}
                 caption="Project Fields"
                 columns={[
                   {

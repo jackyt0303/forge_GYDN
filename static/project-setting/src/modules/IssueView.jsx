@@ -8,16 +8,8 @@ import { useTemplate } from '../hooks/usetemplate';
 
 import AddIcon from '@atlaskit/icon/core/add';
 import Button from '@atlaskit/button/new';
-import Modal, {
-	ModalBody,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@atlaskit/modal-dialog';
 import { Stack, Text } from '@atlaskit/primitives';
 import { CodeBlock } from '@atlaskit/code';
-import DynamicTable from '@atlaskit/dynamic-table';
-import { IconButton } from '@atlaskit/button/new';
 import './IssueView.css';
 
 const isEmpty = (value) => {

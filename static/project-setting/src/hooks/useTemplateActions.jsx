@@ -15,6 +15,7 @@ export const useTemplateActions = ({
   setTemplateCode, 
   setLanguage
 }) => {
+
   const handleSubmit = useCallback(async () => {
     setButtonAppearance('primary');
     
@@ -85,7 +86,7 @@ export const useTemplateActions = ({
         const response = await deleteTemplate(key);
 
         if (response.success) {
-          setMessage(`✅ Template: ${templateName} deleted successfully.`);
+          setMessage(`✅ Template: ${response.deletedTemplateName?response.deletedTemplateName:("Not here.... "+templateName)} deleted successfully.`); //TODO: add new function to get tempalte name
         } // no need to handle error here as it is already handled by the "deleteTemplate()" function in usetemplate.jsx
 
       } finally {

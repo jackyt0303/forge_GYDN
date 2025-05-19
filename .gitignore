@@ -56,3 +56,5 @@ Thumbs.db
 
 /.forge/
 /static/project-setting/build
+
+pnpm-lock.yaml

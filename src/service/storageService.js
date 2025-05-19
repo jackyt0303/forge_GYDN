@@ -61,9 +61,9 @@ export async function getValue(key) {
  */
 export async function deleteValue(key) {
   try {
-    
+    const targetTemplate = await getValue(key);
     await kvs.delete(key);
-    console.log("delete successful")
+    return targetTemplate;
   } catch (error) {
     console.error(`Error deleting value for key "${key}":`, error);
     throw error;

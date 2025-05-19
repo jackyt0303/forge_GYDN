@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@forge/bridge';
 import { validateTemplate } from '../utils/templateValidation';
 
@@ -6,13 +6,12 @@ export const useTemplate = (projectKey) => {
   const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const fetchTemplates = async () => {
+  
+  const fetchTemplates = useCallback(async () => {
     try {
       setIsLoading(true);
       const allTemplates = await invoke('getAllTemplate');
       setTemplates(allTemplates);
-      setError(null);
     } catch (error) {
       setError({
         message: "We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.",
@@ -22,9 +21,9 @@ export const useTemplate = (projectKey) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const createTemplate = async (templateData) => {
+  const createTemplate = useCallback(async (templateData) => {
     try {
       setIsLoading(true);
       const { value, language, name } = templateData;
@@ -58,14 +57,13 @@ export const useTemplate = (projectKey) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectKey, fetchTemplates]);
 
-  const deleteTemplate = async (key) => {
+  const deleteTemplate = useCallback(async (key) => {
     try {
       setIsLoading(true);
-      await invoke('deleteValue', { payload: { key } });
-      await fetchTemplates();
-      return { success: true };
+      const response = await invoke('deleteValue', { payload: { key } });
+      return { success: true, deletedTemplateName: response.name };
     } catch (error) {
       setError({
         message: `Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`,
@@ -73,9 +71,10 @@ export const useTemplate = (projectKey) => {
       });
       return { success: false, error };
     } finally {
+      await fetchTemplates();
       setIsLoading(false);
     }
-  };
+  }, [fetchTemplates]);
 
   useEffect(() => {
     fetchTemplates();

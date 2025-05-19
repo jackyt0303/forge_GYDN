@@ -11,8 +11,8 @@ import './TemplateEditor.css'
  *
  * @component
  * @param {Object} props - Component props
- * @param {string} props.code - The template code/content being edited
- * @param {Function} props.setCode - Function to update the template code
+ * @param {string} props.templateCode - The template code/content being edited
+ * @param {Function} props.setTemplateCode - Function to update the template code
  * @param {string} props.templateName - Name of the template
  * @param {Function} props.setTemplateName - Function to update template name
  * @param {Function} props.handleSubmit - Function called when saving the template
@@ -21,8 +21,8 @@ import './TemplateEditor.css'
  * @returns {JSX.Element} A template editor interface with text input, code editor and file upload
  */
 function TemplateEditor({ 
-  code, 
-  setCode, 
+  templateCode, 
+  setTemplateCode, 
   templateName, 
   setTemplateName, 
   handleSubmit,
@@ -46,8 +46,14 @@ function TemplateEditor({
       
       <textarea
         className='editor'
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
+        value={templateCode}
+        onChange={(e) => {
+          if (typeof setTemplateCode === 'function') {
+            setTemplateCode(e.target.value);
+          } else {
+            console.error('setTemplateCode is not a function', setTemplateCode);
+          }
+        }}
         onKeyDown={handleTabKey}
         rows={20}
         cols={80}
