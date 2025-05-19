@@ -5,20 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 const prefix = 'TEMPLATE-'; // Prefix for keys
 
 /**
- * Save a value to Forge KVS under a specific key.
- * @param {string} key - The key to store the value under.
- * @param {any} value - The value to store (preferably a small JSON object or string).
- */
-export async function saveValue(key, value) {
-  try {
-    await kvs.set(key, value);
-  } catch (error) {
-    console.error(`Error saving value for key "${key}":`, error);
-    throw error;
-  }
-}
-
-/**
  * Save a value to Forge KVS with a dynamically generated unique ID key.
  * @param {string} pKey - project Key.
  * @param {Object} value - template value.

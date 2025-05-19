@@ -23,7 +23,6 @@ import Tabs, { Tab, TabList } from '@atlaskit/tabs';
 function ProjectSetting() {
   const context = useAppContext();
   
-  
   const [customFields, setCustomFields] = useState([]);
   const [projectField, setprojectField] = useState({});
   const [templateCode, setTemplateCode] = useState('{\n    "Instruction": "${summary}"\n}');

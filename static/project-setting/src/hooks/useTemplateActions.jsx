@@ -86,7 +86,7 @@ export const useTemplateActions = ({
         const response = await deleteTemplate(key);
 
         if (response.success) {
-          setMessage(`✅ Template: ${response.deletedTemplateName?response.deletedTemplateName:("Not here.... "+templateName)} deleted successfully.`); //TODO: add new function to get tempalte name
+          setMessage(`✅ Template: ${response.deletedTemplateName} deleted successfully.`);
         } // no need to handle error here as it is already handled by the "deleteTemplate()" function in usetemplate.jsx
 
       } finally {

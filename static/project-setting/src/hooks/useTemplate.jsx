@@ -62,8 +62,9 @@ export const useTemplate = (projectKey) => {
   const deleteTemplate = useCallback(async (key) => {
     try {
       setIsLoading(true);
-      const response = await invoke('deleteValue', { payload: { key } });
-      return { success: true, deletedTemplateName: response.name };
+      const templateName = await invoke('getTemplate', key);
+      await invoke('deleteValue', { payload: { key } });
+      return { success: true, deletedTemplateName: templateName};
     } catch (error) {
       setError({
         message: `Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`,
