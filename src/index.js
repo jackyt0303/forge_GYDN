@@ -14,8 +14,6 @@ const resolver = new Resolver();
       // Log the payload structure and check if 'value' exists
       if (payload && value) {
         console.log('Value received in resolver:', value);
-        console.log('Type of value:', typeof value);
-        console.log('Resolver: Name is: ', name )
         return await saveValueWithGeneratedKey(pKey, value, pDataType , name);
     } else {
         console.log('Payload or payload.value is undefined!');
@@ -26,6 +24,11 @@ const resolver = new Resolver();
     const { key } = payload.payload;
     console.log('reach delete resolver, with key: ', key)
     return await deleteValue(key);
+  });
+
+  resolver.define('getTemplate', async (key) => {
+    console.log('Reached getAll Template Resolver')
+    return await getValue(key);
   });
   
   resolver.define('getAllTemplate', async () => {
@@ -40,7 +43,6 @@ const resolver = new Resolver();
 
 
   // Issue view resolver
-
   resolver.define('getIssueFields', async ({ payload }) => {
     const { issueKey } = payload.payload;
     console.log('getIssueFields resolver called with issueKey:', issueKey);
@@ -48,9 +50,9 @@ const resolver = new Resolver();
   })
 
   resolver.define('mapFields', async ({ payload }) => {
-    console.log('mapFields resolver called with payload:', payload);
+    // console.log('mapFields resolver called with payload:', payload);
     const {missingFields, mappedFields, template} = payload.payload;
-    console.log('missingFields:', missingFields);
+    // console.log('missingFields:', missingFields);
     const mappedValues = await getActualValue(missingFields, mappedFields, template)
       .then((response) => {
         console.log('resolver, response:', response);

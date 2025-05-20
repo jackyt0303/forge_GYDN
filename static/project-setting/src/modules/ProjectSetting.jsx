@@ -1,102 +1,139 @@
-// src/project-setting/src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { invoke } from '@forge/bridge';
+
 import './ProjectSetting.css';
+
 import { useAppContext } from '../Context';
-import Button from '@atlaskit/button/new';
-import Modal, {
-	ModalBody,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@atlaskit/modal-dialog';
-import { Stack, Inline, Text } from '@atlaskit/primitives';
-import Textfield from '@atlaskit/textfield';
-import DynamicTable from '@atlaskit/dynamic-table';
-import { IconButton } from '@atlaskit/button/new';
+import { useTemplate } from '../hooks/usetemplate';
+import { useTemplateActions } from '../hooks/useTemplateActions';
+
+import { extractFieldsFromTemplate } from '../utils/fieldExtractor';
+
+import Loader from '../components/Loader';
+import ModalDialog from '../components/ModalDialog';
+import TemplateEditor from '../components/TemplateEditor';
+import TableList from '../components/TableList';
+
+import { Inline, Text } from '@atlaskit/primitives';
 import EditIcon from '@atlaskit/icon/core/edit';
 import DeleteIcon from '@atlaskit/icon/core/delete';
-import Tabs, { Tab, TabList, TabPanel } from '@atlaskit/tabs';
-import Loader from '../components/Loader';
+import Tabs, { Tab, TabList } from '@atlaskit/tabs';
 
-// Modularized function to validate JSON or XML
-const validateTemplate = (value, language) => {
-  if (!language || language === 'json') {
-    try {
-      JSON.parse(value);
-      return { isValid: true };
-    } catch (err) {
-      return { isValid: false, message: '❌ Invalid JSON format. Please fix errors.' };
-    }
-  }
-
-  if (!language || language === 'xml') {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(value, 'application/xml');
-    const parserError = xmlDoc.querySelector('parsererror');
-    if (parserError) {
-      return { isValid: false, message: `❌ Invalid XML format. ${parserError.textContent}` };
-    }
-    return { isValid: true };
-  }
-
-  return { isValid: false, message: '❌ Unsupported file format. Use JSON or XML.' };
-};
 
 function ProjectSetting() {
   const context = useAppContext();
+  
   const [customFields, setCustomFields] = useState([]);
-  const [customFieldValues, setCustomFieldValues] = useState({}); // TODO: Fetch actual values from Jira
-  const [customFieldValuesRef, setCustomFieldValuesRef] = useState({});
-  const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
-  const [code, setCode] = useState(
-    '{\n    "Instruction": "${summary}"\n}'
-  );
+  const [projectField, setprojectField] = useState({});
+  const [templateCode, setTemplateCode] = useState('{\n    "Instruction": "${summary}"\n}');
   const [language, setLanguage] = useState('json');
   const [infoPanel, setInfoPanel] = useState('templates'); // either 'templates' or 'fields' //tabs 
   const [templateName, setTemplateName] = useState('');
-  const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true); // New loading state
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertAction, setAlertAction] = useState(null);
-  const [buttonAppearance, setButtonAppearance] = useState('subtle'); 
-  const [titleAppearance, setTitleAppearance] = useState('warning'); // Default appearance for the message modal
+
+  const [modalState, setModalState] = useState({
+    message: '',           // Regular message
+    alertMessage: '',      // Confirmation message
+    alertAction: null,     // Action to perform on confirmation
+    buttonAppearance: 'subtle',
+    titleAppearance: 'warning'
+  });
+  const { templates, 
+          isLoading: templatesLoading, 
+          error: templateError, 
+          fetchTemplates,
+          createTemplate, 
+          deleteTemplate } = useTemplate(context.extension.project.key); // add fetchtemplate at the useeffect at the mainfile
 
   const showAlert = (message, action) => {
-    setAlertMessage(message);
-    setAlertAction(() => action);
+    setModalState(prevState=>({
+      ...prevState,
+      alertMessage: message,
+      alertAction: action
+    }))
   };
 
   const handleConfirm = async () => {
-    if (alertAction) await alertAction();
-    setAlertMessage('');
-    setAlertAction(null);
-    setButtonAppearance('subtle'); 
-    setTitleAppearance('warning'); 
+    if (modalState.alertAction) await modalState.alertAction();
+    setModalState(prevState=>({
+      ...prevState,
+      alertMessage: '',
+      alertAction: null,
+      buttonAppearance:'subtle',
+      titleAppearance:'warning'
+    }))
   };
 
   const handleCancel = () => {
-    setAlertMessage('');
-    setAlertAction(null);
-    setMessage('');
-    setErrorMessage(''); // Add this line to clear error messages
-    setButtonAppearance('subtle');
-    setTitleAppearance('warning'); 
+    setModalState({
+      message: '',
+      alertMessage: '',
+      alertAction: null,
+      buttonAppearance: 'subtle',
+      titleAppearance: 'warning'
+    });
     setInfoPanel('templates'); // Reset to default tab
   };
+
+  const setMessage = (message) => {
+    setModalState(prevState => ({
+      ...prevState,
+      message
+    }));
+  };
+
+  const setButtonAppearance = (appearance) => {
+    setModalState(prevState => ({
+      ...prevState,
+      buttonAppearance: appearance
+    }));
+  };
+  
+  const setTitleAppearance = (appearance) => {
+    setModalState(prevState => ({
+      ...prevState,
+      titleAppearance: appearance
+    }));
+  };
+
+  const { handleSubmit, handleFileUpload, handleDelete } = useTemplateActions({
+    templateCode,
+    templateName,
+    language,
+    createTemplate,
+    setMessage,
+    setButtonAppearance,
+    setTitleAppearance,
+    showAlert,
+    setIsLoading,
+    deleteTemplate,
+    setTemplateCode, 
+    setLanguage
+  });
+
+  useEffect(() => {
+    if (templateError) {
+      handleError(
+        null,
+        templateError.message,
+        templateError.operation
+      );
+    }
+  }, [templateError]);
 
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoading(true); // Start loading
-        await fetchCustomFieldValuesRef(); // Fetch custom field values from Jira
-        await fetchTemplates();
+        setIsLoading(true);
+        await fetchprojectField();
       } catch (error) {
-        console.error('Error initializing data:', error);
-        setErrorMessage("Unable to load templates and project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.");
+        handleError(
+          error,
+          "Unable to load project data. Please try refreshing the page. If the problem persists, check your network connection or contact support.",
+          'Initialization'
+        );
       } finally {
-        setIsLoading(false); // End loading
+        setIsLoading(false);
       }
     };
     initializeData();
@@ -104,281 +141,124 @@ function ProjectSetting() {
 
   useEffect(() => {
     fetchCustomField();
-  }, [infoPanel, code, customFieldValues]); 
-
-  useEffect(() => {
-    fetchTemplates();
-    setInfoPanel('templates');
-  }, [message]);
-
-  const fetchTemplates = async () => {
-    try {
-      const allTemplates = await invoke('getAllTemplate');
-      setTemplates(allTemplates);
-    } catch (error) {
-      console.error('[PS:main]Error fetching templates:', error);
-      setErrorMessage("We couldn't retrieve your available templates. Please try again in a moment or contact your administrator if this issue continues.");
-      // Return empty array to prevent further errors
-      setTemplates([]);
-    }
-  };
+  }, [templateCode]); 
 
   const fetchCustomField = async () => {
     try {
-      const matches = [...code.matchAll(/\$\{([^}]+)\}/g)].map((m) => m[1]);
-      setCustomFields([...new Set(matches)]);
+      setCustomFields(extractFieldsFromTemplate(templateCode))
     } catch (error) {
-      console.error('[PS]Error fetching custom fields:', error);
-      setErrorMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.");
+      handleError(
+        error,
+        "Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different one.",
+        'custom field extraction'
+      );
       setCustomFields([]);
     }
   };
 
-  const fetchCustomFieldValuesRef = async () => {
+  const fetchprojectField = async () => {
     try {
       const fieldRef = await invoke('getFieldValuesRef', { payload: { pkey: context.extension.project.key } });
-      setCustomFieldValuesRef(fieldRef); 
+      setprojectField(fieldRef); 
       return fieldRef;
     } catch (error) {
-      console.error('Error fetching custom field values:', error);
-      setErrorMessage("Could not retrieve field value references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.");
-      setCustomFieldValuesRef({}); // Fallback to empty object
+      handleError(
+        error,
+        "Could not retrieve project field references. Some field validations might not work correctly. Try refreshing the page, or proceed with caution.",
+        'fetching field value references'
+      );
+      setprojectField({}); // Fallback to empty object
       return {};
     }
   };
 
-  const handleFileUpload = async (e) => {
-    try {
-      const file = e.target.files[0];
-      
-      if (!file) {
-        setErrorMessage("No file was selected. Please choose a JSON or XML file to upload.");
-        return;
-      }
-      
-      if (!['json', 'xml'].includes(file.name.split('.').pop().toLowerCase())) {
-        setErrorMessage("Unsupported file type. Please upload only JSON or XML files. Other formats are not compatible with this tool.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const rawContent = event.target.result;
-          const fileType = file.name.split('.').pop().toLowerCase();
-          setLanguage(fileType === 'xml' ? 'xml' : 'json');
-          const validation_fu = validateTemplate(rawContent, fileType); 
-          
-          if (!validation_fu.isValid) {
-            setErrorMessage(`${validation_fu.message} Please fix the errors in your file before uploading again.`);
-            return;
-          }
-
-          setCode(rawContent);
-          fetchCustomField(); 
-        } catch (error) {
-          console.error('Error processing uploaded file:', error);
-          setErrorMessage("There was a problem processing your file. Ensure the file content is valid and try again. If the issue persists, try a different file.");
-        }
-      };
-      
-      reader.onerror = () => {
-        setErrorMessage("Failed to read the file. The file might be corrupted or inaccessible. Try a different file or check your browser permissions.");
-      };
-      
-      reader.readAsText(file);
-    } catch (error) {
-      console.error('Error in file upload:', error);
-      setErrorMessage("An unexpected error occurred while uploading your file. Please try again or use a different file.");
-    }
-  };
-
-  const handleSubmit = async () => {
-    setButtonAppearance('primary'); 
-    showAlert('Are you sure you want to save this template?', async () => {
-      try {
-        setIsLoading(true);
-        
-        if (!templateName) {
-          setErrorMessage("Please enter a template name before saving. A descriptive name helps identify the template later.");
-          setIsLoading(false);
-          return;
-        }
-        
-        const value = code;
-        const tempName = templateName || 'Unnamed Template'; 
-        
-        const validation = validateTemplate(value, language);
-        if (!validation.isValid) {
-          setErrorMessage(`${validation.message} Please correct the template format before saving.`);
-          setIsLoading(false);
-          return;
-        }
-
-        // Store template in forge storage
-        await invoke('saveValueWithGeneratedKey', { 
-          payload: { 
-            projectKey: context.extension.project.key, 
-            value: value, 
-            dataType: language, 
-            name: tempName
-          }
-        })
-        .then((name) => {
-          setMessage(`✅ Template saved successfully with name: ${name}`);
-        })
-        .catch((error) => {
-          console.error('Error saving template:', error);
-          setErrorMessage("Failed to save template. This might be due to network issues or permission problems. Please try again or contact your administrator if the problem persists.");
-        });
-
-      } catch (err) {
-        console.error('Error in handleSubmit:', err);
-        setErrorMessage("Failed to save the template. Please ensure your template is valid and your connection is stable, then try again.");
-      } finally {
-        setIsLoading(false);
-        setTemplateName('');
-
-      }
-    });
-  };
-
-  const handleDelete = async (key) => {
-    setButtonAppearance('danger');
-    setTitleAppearance('danger');
-    
-    showAlert(`Are you sure you want to delete the template with key: ${key}?`, async () => {
-      try {
-        setIsLoading(true);
-        await invoke('deleteValue', { payload: { key: key } });
-        setMessage(`✅ Template with key ${key} deleted successfully.`);
-      } catch (error) {
-        console.error('[PS] Error deleting template:', error);
-        setErrorMessage(`Failed to delete template with key: ${key}. This could be due to network issues or the template may no longer exist. Please refresh the page and try again.`);
-      } finally {
-        setIsLoading(false);
-      }
-    });
-  };
-
-  const handleEditCode = async (value) => {
+  const handleEditTemplateCode = async (value) => {
+    setButtonAppearance('primary');
     showAlert('Are you sure you want to edit this template?', () => {
-      setButtonAppearance('primary');
       try {
-        setCode(value.template);
+        setTemplateCode(value.template);
         setLanguage(value.datatype);
       } catch (error) {
-        console.error('[PS] Error editing template code:', error);
-        setErrorMessage("Failed to load the template for editing. The template might be corrupted. Try selecting a different template.");
+        handleError(
+          error,
+          "Failed to load the template for editing. The template might be corrupted. Try selecting a different template.",
+          "Edit templateCode"
+        );
       }
     });
   };
 
-  if (isLoading) {
-    return <Loader />
+  const handleError = (error, errorMessage, operation = '') => {
+    const prefix = '[ProjectSetting]';
+    console.error(`${prefix} Error ${operation ? `during ${operation}` : ''}:`, error);
+    setMessage(errorMessage);
+  };
+
+  const handleTabKey = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const updatedTemplateCode = 
+        templateCode.substring(0, start) + '    ' + templateCode.substring(end);
+      
+      setTemplateCode(updatedTemplateCode);
+
+      // Delay updating caret position until after DOM update
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+      }, 0);
+    }
+  }
+
+  const templateData = useMemo(() => {
+    return templates.map(({key, value}) => ({
+      key,
+      name: value.name,
+      value
+    }));
+  }, [templates]);
+
+  const fieldData = useMemo(() => {
+    return customFields.map(field => ({
+      field,
+      availability: projectField[field] ? 'Available' : 'Not Found'
+    }));
+  }, [customFields,projectField]);
+
+  const projectFieldData = useMemo(() => 
+    Object.entries(projectField).map(([field, value]) => ({
+      field,
+      name: value ? value : 'Not Found'
+    })), [projectField]);
+
+  if (isLoading || templatesLoading) {
+    return <Loader />;
   }
   
   return (
     <div className="project-setting-container">
+      {(!!modalState.alertMessage || !!modalState.message) && 
+        <ModalDialog 
+          message={modalState.alertMessage || modalState.message}
+          handleCancel={handleCancel}
+          handleConfirm={!!modalState.alertMessage? handleConfirm : null}
+          titleAppearance={modalState.titleAppearance}
+          buttonAppearance={modalState.buttonAppearance}
+        />}
       
-      {!!alertMessage && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader hasCloseButton>
-            <ModalTitle appearance={titleAppearance}>Confirm Your Action</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-          {alertMessage}
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="subtle" onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button appearance={buttonAppearance} onClick={handleConfirm}>
-              Confirm
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
-
-      {!!message && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader>
-            <ModalTitle appearance={titleAppearance} >Message</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-          {message}
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="subtle" onClick={handleCancel}>
-              Close
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
-      
-      {!!errorMessage && (
-        <Modal onClose={handleCancel}>
-          <ModalHeader hasCloseButton>
-            <ModalTitle appearance='danger'>Unable to Complete Operation</ModalTitle>
-          </ModalHeader>
-          <ModalBody>
-            <Text as="p">{errorMessage}</Text>
-            <Text as="p" color="subtle">If this issue persists, please contact your administrator with error code: {Date.now().toString(36)}</Text>
-          </ModalBody>
-          <ModalFooter>
-            <Button appearance="primary" onClick={() => setErrorMessage("")}>
-              Dismiss
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
-
       <Inline space='space.200' grow='fill'>
-        <div className="editor-wrapper">
-          <h2>📝Template Editor</h2>
-          <div>
-            <label>Template Name:</label>
-            <Textfield 
-              id="atlaskit-textfield"
-              appearance="standard"
-              placeholder="Enter Your Template Name here"
-              isRequired = 'true'
-              onChange={(e) => setTemplateName(e.target.value)}
-            />
-          </div>
-          
-          <textarea
-            className='editor'
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                const textarea = e.target;
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const updatedCode = 
-                  code.substring(0, start) + '    ' + code.substring(end);
-                
-                setCode(updatedCode);
-
-                // Delay updating caret position until after DOM update
-                setTimeout(() => {
-                  textarea.selectionStart = textarea.selectionEnd = start + 4;
-                }, 0);
-              }
-            }}
-            rows={20}
-            cols={80}
-          />
-          <div className="file-upload-row">
-            <label>Upload JSON/XML:</label>
-            <input type="file" accept=".json,.xml" onChange={handleFileUpload} />
-          </div>
-          <div className='button-row'>
-            <Button appearance="primary" onClick={handleSubmit}>Save Template</Button>
-          </div>
-        </div>
+      <TemplateEditor
+          templateCode={templateCode}
+          setTemplateCode={setTemplateCode} 
+          templateName={templateName}
+          setTemplateName={setTemplateName}
+          language={language}
+          handleSubmit={handleSubmit}
+          handleFileUpload={handleFileUpload}
+          handleTabKey={handleTabKey}
+        />
 
         <div className="info-panel">
           <Tabs onChange={(index) => setInfoPanel(index === 0?'templates':'fields')} id="default">
@@ -390,153 +270,82 @@ function ProjectSetting() {
 
           {infoPanel === 'templates' ? (
             <div>
-              {templates.length === 0 ? (
-                <p>No templates available.</p>
-              ) : (
-                <>                
-                <DynamicTable
-                  caption="Available Templates"
-                  head={{
-                    cells: [
-                      {
-                        key: 'template',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Template</Text>
-                          </div>
-                        ),
-                        width: 70,
-                        isSortable: true,
-                      },
-                      {
-                        key: 'actions',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Actions</Text>
-                          </div>
-                        ),
-                        width: 30,
-                      },
-                    ],
-                  }}
-                  rows={templates.map(({key, value}) => ({
-                    key: `row-${key}`,
-                    cells: [
-                      {
-                        key: `template-${key}`,
-                        content: <div style={{ textAlign: 'center' }}>{value.name}</div>,
-                      },
-                      {
-                        key: `actions-${key}`,
-                        content: (
-                          <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <IconButton icon={EditIcon} label="Edit" onClick={() => handleEditCode(value)}/>
-                            <IconButton icon={DeleteIcon} label="Delete" onClick={() => handleDelete(key)}/>
-                          </div>
-                        ),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={10}
-                  defaultPage={1}
-                  loadingSpinnerSize="large"
-                  isLoading={isLoading}
-                  emptyView={<Text>No templates found</Text>}
-                />
-                </>
-              )
-              }
-              
+              <TableList 
+                data={templateData}
+                caption="Available Templates"
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Template',
+                    width: 70,
+                    isSortable: true
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    width: 30
+                  }
+                ]}
+                actions={[
+                  {
+                    icon: EditIcon,
+                    label: 'Edit',
+                    onClick: (item) => handleEditTemplateCode(item.value)
+                  },
+                  {
+                    icon: DeleteIcon,
+                    label: 'Delete',
+                    onClick: (item) => handleDelete(item.key)
+                  }
+                ]}
+                rowsPerPage={10}
+                isLoading={isLoading}
+                emptyMessage="No templates found"
+                idField="key"
+              />
             </div>
           ) : (
             <div>
-              <DynamicTable
-                  caption="Detected Fields"
-                  head={{
-                    cells: [
-                      {
-                        key: 'template',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Field ID</Text>
-                          </div>
-                        ),
-                        width: 60,
-                        isSortable: true,
-                      },
-                      {
-                        key: 'actions',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Availability</Text>
-                          </div>
-                        ),
-                        width: 40,
-                      },
-                    ],
-                  }}
-                  rows={customFields.map((field) => ({
-                    key: `row-${field}`,
-                    cells: [
-                      {
-                        key: `cell-${field}`,
-                        content: <div style={{ textAlign: 'center' }}>{field}</div>,
-                      },
-                      {
-                        key: `actions-${field}`,
-                        content: (<Text>{(customFieldValuesRef[field]) ? 'Available':'Not Found'}</Text>),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={5}
-                  defaultPage={1}
-                  loadingSpinnerSize="medium"
-                  isLoading={isLoading}
-                  emptyView={<Text>No fields found</Text>}
-                />
-              <DynamicTable
-                  caption="Project Fields"
-                  head={{
-                    cells: [
-                      {
-                        key: 'ProjectFieldID',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Field ID</Text>
-                          </div>
-                        ),
-                        isSortable: true,
-                      },
-                      {
-                        key: 'ProjectFieldName',
-                        content: (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <Text as='strong' size="large">Name</Text>
-                          </div>
-                        ),
-                        isSortable: true,
-                      },
-                    ],
-                  }}
-                  rows={Object.entries(customFieldValuesRef).map(([field, value]) =>({
-                    key: `row-${field}`,
-                    cells: [
-                      {
-                        key: `cell-${field}`,
-                        content: <div style={{ textAlign: 'center' }}>{field}</div>,
-                      },
-                      {
-                        key: `actions-${field}`,
-                        content: (<Text>{value ? value : 'Not Found'}</Text>),
-                      },
-                    ],
-                  }))}
-                  rowsPerPage={8}
-                  defaultPage={1}
-                  loadingSpinnerSize="medium"
-                  isLoading={isLoading}
-                  emptyView={<Text>No fields found</Text>}
-                />
+              <TableList 
+                data={fieldData}
+                caption="Detected Fields"
+                columns={[
+                  {
+                    key: 'field',
+                    header: 'Field ID',
+                    width: 60,
+                    isSortable: true
+                  },
+                  {
+                    key: 'availability',
+                    header: 'Availability',
+                    width: 40
+                  }
+                ]}
+                rowsPerPage={5}
+                isLoading={isLoading}
+                emptyMessage="No fields found"
+              />
+
+              <TableList 
+                data={projectFieldData}
+                caption="Project Fields"
+                columns={[
+                  {
+                    key: 'field',
+                    header: 'Field ID',
+                    isSortable: true
+                  },
+                  {
+                    key: 'name',
+                    header: 'Name',
+                    isSortable: true
+                  }
+                ]}
+                rowsPerPage={8}
+                isLoading={isLoading}
+                emptyMessage="No fields found"
+              />
             </div>
           )}
         </div>

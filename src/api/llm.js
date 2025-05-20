@@ -124,6 +124,17 @@ async function searchDescription (parsedResponse, template, actualDescription, m
         contents: prompt_description,
         config:generationConfig
     })
+    
+    const countTokensResp = await googleGenAI.models.countTokens({
+        model: selectedModel,
+        contents: prompt_description,
+        config:generationConfig
+    });
+    console.log('Token count for second prompt:', countTokensResp);
+
+      // Response tokens count
+    const usageMetadata = response.usageMetadata;
+    console.log('Response tokens count for second prompt: ', usageMetadata);
 
     return response.text;
 }
@@ -228,16 +239,25 @@ export const getActualValue = async (missingFields, mappedFields, template) => {
     let parsedResponse;
     let responseMessaage = null;
     try {
-        // console.log('responseText in llm.js done (direct JSON):', responseText);
+        // console.log('Calulation Input: \n'+prompt_initial+'\n')
+        // console.log('"Calculation" Output: \n', responseText+"\n");
+
+        const countTokensResp = await googleGenAI.models.countTokens({
+            model: selectedModel,
+            contents: prompt_initial,
+        });
+        console.log('Token count for initial prompt:', countTokensResp);
+
+          // Response tokens count
+        const usageMetadata = response.usageMetadata;
+        console.log('Response tokens count for initial prompt: ', usageMetadata);
+
         parsedResponse = JSON.parse(responseText);
         responseMessaage = null;
         return parsedResponse;
     } catch (directJsonError) {
         // If direct parsing fails, try to extract from markdown
-        // console.log('responseText in llm.js (markdown):', responseText);
-        // console.log('Error parsing JSON directly:', directJsonError.message);
         console.log('Reached JSON matching regex')
-        console.log('missingFields length: ', missingFields.length)
         try {
             // check if needed description fallback to search missing fields
             if (missingFields.length > 0){

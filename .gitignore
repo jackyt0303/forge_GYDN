@@ -55,3 +55,7 @@ Thumbs.db
 .env.test
 
 /.forge/
+/static/project-setting/build
+
+pnpm-lock.yaml
+pnpm-workspace.yaml
