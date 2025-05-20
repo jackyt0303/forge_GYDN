@@ -6,18 +6,13 @@ import TableList from "../components/TableList";
 import VerifyTemplate from "../components/VerifyTemplate";
 import { invoke } from '@forge/bridge';
 import { useTemplate } from '../hooks/usetemplate';
+import { isEmpty, mapCustomFieldsToValues, fetchCustomField } from '../utils/fieldMapper';
+import { regexMapping, downloadTemplate } from '../utils/templateProcessor';
 
 import AddIcon from '@atlaskit/icon/core/add';
 import Button from '@atlaskit/button/new';
 import { Stack, Text } from '@atlaskit/primitives';
 import './IssueView.css';
-
-const isEmpty = (value) => {
-    if (value === "" || value === null || value === undefined) return true;
-    if (Array.isArray(value) && value.length === 0) return true;
-    if (typeof value === 'object' && Object.keys(value).length === 0) return true;
-    return false;
-};
 
 function IssueView(){
     const context = useAppContext();
@@ -145,8 +140,7 @@ function IssueView(){
                 error,
                 "There was an error while performing this action. Please try again or contact support.",
                 'confirmation action'
-            );
-        } finally {
+            );        } finally {
             setIsLoading(false);
             setModalState(prevState => ({
                 ...prevState,
@@ -156,56 +150,23 @@ function IssueView(){
         }      
     }
 
-    const fetchCustomField = async (templateContent) => {
+    const handleVerified = async () => {
         try {
-            const matches = [...templateContent.matchAll(/\$\{([^}]+)\}/g)].map((m) => m[1]);
-            return([...new Set(matches)]);
-        } catch (error) {
-            console.error('[IP]Error fetching custom fields:', error);
-            setMessage("Problem analyzing the template fields. The template might be incorrectly formatted. Please check the template format or try a different template.");
-            return [];
-        }
-      };
-
-      const handleVerified = async () => {
-        try {
-            if (!completedTemplate || !templateLanguage) {
-                throw new Error("Template content or language is missing.");
+            try {
+                await downloadTemplate(completedTemplate, templateLanguage, templateName);
+            } catch (error) {
+                throw error;
             }
-    
-            // Decide MIME type based on file extension
-            let mimeType = "text/plain";
-            let fileExtension = "txt";
-    
-            if (templateLanguage.toLowerCase() === "json") {
-                mimeType = "application/json";
-                fileExtension = "json";
-            } else if (templateLanguage.toLowerCase() === "xml") {
-                mimeType = "application/xml";
-                fileExtension = "xml";
-            }
-    
-            const blob = new Blob([completedTemplate], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-    
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${templateName}.${fileExtension}`;
-            a.click();
-            URL.revokeObjectURL(url);
-    
-            
         } catch (error) {
             console.error("Error downloading the template:", error);
             setMessage("We couldn't generate your download. Please check if your browser allows downloads from this site, or try saving the content manually by copying it to a text file.");
             cleanUp();
-        } finally{
+        } finally {
             // Optional cleanup
             cleanUp();
         }
     };
     
-
     const handleSelectTemplate = async (template) => {
         showAlert(`Are you sure you want to select the template "${template.name}"?`, async () => {
         try {
@@ -213,7 +174,12 @@ function IssueView(){
             const customFields = await fetchCustomField(template.template);
             
             // compare the template fields with the issue fields and map them accordingly
-            const {mappedFields,  missingFields: missingFieldsHere} = await mapCustomFieldsToValues(customFields, issueFields);
+            const {mappedFields, missingFields: missingFieldsHere} = await mapCustomFieldsToValues(customFields, issueFields);
+            
+            // When using missingFields from the utility, update the component state
+            if (missingFieldsHere.length > 0) {
+                setMissingFields(missingFieldsHere);
+            }
             
             // replace the template fields with the mapped values    
             let mappedValues;
@@ -227,7 +193,7 @@ function IssueView(){
                 throw error; // Re-throw to properly signal failure
             }
 
-            const mappedTemplate = await regexMapping(template.template, mappedValues);
+            const mappedTemplate = regexMapping(template.template, mappedValues);
             setCompletedTemplate(mappedTemplate);
             setTemplateLanguage(template.datatype);
             setTemplateName(template.name);
@@ -238,68 +204,7 @@ function IssueView(){
             cleanUp();
         }         
         });
-    }
-
-    const mapCustomFieldsToValues = async (customFields, issueFields) => {
-        let mappedFields = {};
-        try {
-            // Find missing fields
-            let missingFieldsHere = [];
-            
-            // Map customFields to their corresponding values in fieldValues
-            mappedFields = customFields.reduce((acc, field) => {
-                if (!issueFields[field]) {
-                    acc[field] = 'missing value'; 
-                    missingFieldsHere.push(field);
-                }else if (issueFields[field] && isEmpty(issueFields[field])){
-                    acc[field] = 'empty value';
-                    missingFieldsHere.push(field);
-                }else{
-                    acc[field] = issueFields[field];
-                }
-                return acc;
-            }, {});
-
-            // add description field to the mappedFields
-            if (isEmpty(mappedFields.description)) {
-                mappedFields.description = issueFields.description;
-            }
-            // console.log('missingFieldsHere:', missingFieldsHere);
-            if (missingFieldsHere.length > 0) {
-                
-                setMissingFields(missingFieldsHere);
-            }
-
-            return {"mappedFields":mappedFields, "missingFields":missingFieldsHere}; 
-        } catch (error) {
-            console.error('Error during field mapping:', error.message);
-            throw error; // Re-throw to properly signal failure
-        } 
-    };
-
-    const regexMapping = (templateContent, mappedFields) => {
-        try {
-            // Replace the template fields with the mapped values
-            let finalTemplate = templateContent;
-
-            // Use the same pattern as in fetchCustomField
-            for (const [field, value] of Object.entries(mappedFields)) {
-                
-                // Escape special regex characters : " . * + ? ^ $ { } ( ) | [ ] \ " to ensure misinterpretation
-                const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the matched substring, '\\' means to escape \ using a single \
-                
-                // Use a literal regex pattern with escaping
-                const regex = new RegExp(`\\$\\{${escapedField}\\}`, 'g');
-                
-                // Replace all occurrences of the placeholder with the actual value
-                finalTemplate = finalTemplate.replace(regex, value);
-            }
-            return finalTemplate;
-        } catch (error) {
-            console.error('Error modifying template:', error);
-            setMessage('Failed to map field values to the template. This might be due to unexpected characters in the field values. Try again with different field values or contact support.');
-        }
-    }
+    }// Field mapping moved to fieldMapper.js utility    // Template regex mapping moved to templateProcessor.js utility
 
     if (isLoading || templatesLoading) {
         return <Loader/>;
